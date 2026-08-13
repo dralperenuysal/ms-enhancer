@@ -1,14 +1,31 @@
 # MS-ENHANCER-GEN
 
-A research pipeline that generates candidate cell-type-specific cis-regulatory DNA sequence
-for multiple sclerosis (MS) risk loci, selects candidates with a genomic deep-learning oracle
-(Enformer, cross-checked against Borzoi), and tests what that oracle actually rewards by
-direct sequence intervention.
+A computational research and benchmarking pipeline that generates candidate cell-type-specific cis-regulatory DNA sequences for multiple sclerosis (MS) risk loci, evaluates candidates with genomic deep-learning oracles (Enformer, cross-checked against Borzoi), and systematically audits what these oracles reward via in-silico genetic interventions.
 
-This is a research/prototype project, not a clinical tool. No claims of therapeutic or
-diagnostic validity appear anywhere in this repository.
+> **Scope Note:** This is a research/prototype project, not a clinical tool. No claims of therapeutic or diagnostic validity appear anywhere in this repository.
 
-## Setup
+---
+
+## Quickstart (Nextflow & Docker)
+
+The fastest and most reproducible way to run the entire pipeline on any GPU-enabled machine (no local dependency setup required):
+
+```bash
+# 1. Install Nextflow (requires Java 11+)
+curl -s https://get.nextflow.io | bash
+sudo mv nextflow /usr/local/bin/
+
+# 2. Run the full MS pipeline (automatically pulls the pre-built Docker Hub image)
+nextflow run dralperenuysal/ms-enhancer -profile docker --suffix "ms"
+```
+
+All outputs, models, Enformer scores, and HTML execution reports are automatically placed in `results_ms/`.
+
+To run this pipeline on a **different disease** (e.g. Ulcerative Colitis, Alzheimer's) or custom GEO dataset, see [**`docs/REPRODUCING.md`**](docs/REPRODUCING.md).
+
+---
+
+## Local Setup (Conda / Pip)
 
 ```bash
 conda env create -f environment.yml
@@ -16,54 +33,69 @@ conda activate ms_enhancer
 # or: pip install -r requirements.txt
 ```
 
-Requires a CUDA GPU with ≥24 GB VRAM for Enformer/Borzoi inference and transformer training.
-All paths, GEO accessions, oracle track indices, and hyperparameters live in `configs/*.yaml`;
-nothing is hardcoded in source.
+* **Hardware:** Requires a CUDA GPU with ≥24 GB VRAM for Enformer/Borzoi inference and Transformer training.
+* **Configuration:** All paths, GEO accessions, oracle track indices, and hyperparameters live in `configs/*.yaml`; nothing is hardcoded in source.
+* **Pre-built Container Image:** `docker pull dralperenuysal/ms-enhancer:latest`
 
-A `Dockerfile` is provided for a reproducible environment (`docker build -t ms-enhancer .`).
-To run this pipeline on a different disease or GEO dataset, see
-[`docs/REPRODUCING.md`](docs/REPRODUCING.md).
+---
 
-## Pipeline
+## Step-by-Step CLI Pipeline
+
+If running commands individually:
 
 ```bash
-python scripts/build_dataset.py           # download/process GEO chromatin data, build windows
-python train.py                           # train the genomic transformer (optional baseline)
-python generate.py --generator markov     # fit the order-6 Markov chain and sample candidates
-python evaluate.py --oracle {realism,motif,enformer,borzoi}
-python scripts/select_candidates.py       # score and select by oracle
+# 1. Build 1000 bp windows and one-hot encoded tensors from GWAS/GEO data
+python scripts/build_dataset.py --config configs/data_config.yaml
+
+# 2. Train the genomic transformer generator
+python train.py --config configs/model_config.yaml --model_type transformer
+
+# 3. Generate candidate sequences (or fit order-6 Markov baseline)
+python generate.py --generator checkpoint --checkpoint models/generator/transformer_best.pt --cell_type CD4_T_cell
+
+# 4. In-silico evaluation with DeepMind Enformer
+python evaluate.py --oracle enformer --input_fasta data/fasta/synthetic_ms_enhancers.fasta
+
+# 5. Rank and select top candidates
+python scripts/select_candidates.py --report logs/evaluation_results.json --fasta data/fasta/synthetic_ms_enhancers.fasta --top_k 50 --out_fasta data/fasta/top_selected_candidates.fasta
+
+# 6. In-silico interventions & mechanistic auditing
 python scripts/compare_selected_grammar.py
 python scripts/occlusion_scan.py
 python scripts/motif_ablation.py
-python scripts/attribution_scan.py
-python scripts/cpg_swap.py                # composition-preserving CpG intervention
-python scripts/locus_survey.py            # 24-locus heterogeneity survey
-python scripts/mpra_scoring_set.py        # external lentiMPRA calibration
+python scripts/cpg_swap.py
+python scripts/locus_survey.py
+python scripts/mpra_scoring_set.py
 ```
 
-Each script's `--help` lists its arguments; defaults match the paths and parameters in
-`configs/model_config.yaml` and `configs/data_config.yaml`.
+Each script's `--help` lists its arguments; defaults match the paths and parameters in `configs/model_config.yaml` and `configs/data_config.yaml`.
 
-## Repository layout
+---
 
+## Repository Layout
+
+```text
+configs/        data_config.yaml, model_config.yaml (all paths/accessions/hyperparameters)
+src/            data_processing/, models/ (cVAE, transformer), evaluation/ (oracles, motif,
+                Markov baseline, sequence realism), utils/
+scripts/        build_dataset.py, candidate selection, interventions, survey, MPRA scoring
+tests/          pytest suite, one file per src/ module (185 tests, 100% pass)
+main.nf         Nextflow DSL2 automated multi-disease workflow
+nextflow.config Nextflow profiles (docker, slurm, singularity, awsbatch)
+Dockerfile      Reproducible container definition (dralperenuysal/ms-enhancer:latest)
 ```
-configs/     data_config.yaml, model_config.yaml (every path/accession/hyperparameter)
-src/         data_processing/, models/ (cVAE, transformer), evaluation/ (oracles, motif,
-             Markov baseline, sequence realism), utils/
-scripts/     one-off analysis entry points (selection, interventions, survey, MPRA scoring)
-tests/       pytest suite, one file per src/ module (185 tests)
-```
 
-`data/`, `models/`, `logs/`, and `graphify-out/` are git-ignored: they hold the reference
-genome, downloaded/generated data, model checkpoints, run logs, and a local code-graph cache,
-either too large for the repo or regenerated by the commands above.
+`data/`, `models/`, `logs/`, and `results_*/` are git-ignored: they hold reference genomes, downloaded/generated data, model checkpoints, run logs, and pipeline deliverables.
 
-## Tests
+---
+
+## Testing
 
 ```bash
+# In local conda env:
 pytest
-```
 
-Every module in `src/` has a matching test file; randomness is seeded (`seed=42`, `seed=0`
-for evaluation subsampling) so results are reproducible; exact package versions are pinned in
-`environment.yml` / `requirements.txt`.
+# Or via Docker:
+docker run --rm dralperenuysal/ms-enhancer:latest pytest
+```
+All 185 unit tests are seeded (`seed=42`) for deterministic reproducibility across platforms.
