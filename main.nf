@@ -56,6 +56,10 @@ process BUILD_DATASET {
     def suffix_arg = "--suffix '${params.suffix}'"
     """
     export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
+    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
+        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
+        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    fi
     mkdir -p data
     if [ -f "${genome_fa}" ]; then
         ln -s \$(readlink -f ${genome_fa}) data/hg38.fa
@@ -93,6 +97,10 @@ process TRAIN_MODEL {
     script:
     """
     export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
+    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
+        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
+        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    fi
     mkdir -p models/generator logs data/processed
     ln -s \$(readlink -f ${dataset_pt}) data/processed/processed_dataset.pt
 
@@ -130,6 +138,10 @@ process GENERATE_SEQUENCES {
     script:
     """
     export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
+    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
+        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
+        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    fi
     mkdir -p data/fasta data/processed logs
 
     ln -s \$(readlink -f ${dataset_pt}) data/processed/processed_dataset.pt
@@ -167,6 +179,10 @@ process EVALUATE_ORACLE {
     script:
     """
     export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
+    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
+        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
+        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    fi
     mkdir -p logs data
     ln -s \$(readlink -f ${genome_fa}) data/hg38.fa
 
@@ -198,6 +214,10 @@ process SELECT_CANDIDATES {
     script:
     """
     export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
+    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
+        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
+        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    fi
     mkdir -p logs
 
     python ${projectDir}/scripts/select_candidates.py \
