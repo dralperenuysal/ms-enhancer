@@ -33,25 +33,6 @@ params.epochs           = 100
 params.batch_size       = 64
 params.seed             = 42
 
-log.info """\
-================================================================================
-MS-ENHANCER-GEN : Nextflow Workflow
-================================================================================
-Experiment Suffix : ${params.suffix}
-Output Directory  : ${params.outdir}
-Data Config       : ${params.data_config}
-Model Config      : ${params.model_config}
-GWAS Trait ID     : ${params.gwas_id ?: 'Default (Config-defined)'}
-GWAS Trait Label  : ${params.gwas_label ?: 'Default (Config-defined)'}
-GEO Accession     : ${params.gse ?: 'Default (Config-defined)'}
-Target Cell Type  : ${params.cell_type}
-Model Type        : ${params.model_type}
-Num Samples       : ${params.num_samples}
-Oracle Evaluator  : ${params.oracle}
-Top-K Selection   : ${params.top_k}
-================================================================================
-"""
-
 // Process 1: Build Genomic Windows & Tensors
 process BUILD_DATASET {
     tag "Building dataset (suffix: ${params.suffix})"
@@ -222,6 +203,25 @@ process SELECT_CANDIDATES {
 
 // Main Workflow Orchestration
 workflow {
+    log.info """\
+    ================================================================================
+    MS-ENHANCER-GEN : Nextflow Workflow
+    ================================================================================
+    Experiment Suffix : ${params.suffix}
+    Output Directory  : ${params.outdir}
+    Data Config       : ${params.data_config}
+    Model Config      : ${params.model_config}
+    GWAS Trait ID     : ${params.gwas_id ?: 'Default (Config-defined)'}
+    GWAS Trait Label  : ${params.gwas_label ?: 'Default (Config-defined)'}
+    GEO Accession     : ${params.gse ?: 'Default (Config-defined)'}
+    Target Cell Type  : ${params.cell_type}
+    Model Type        : ${params.model_type}
+    Num Samples       : ${params.num_samples}
+    Oracle Evaluator  : ${params.oracle}
+    Top-K Selection   : ${params.top_k}
+    ================================================================================
+    """
+
     data_config_ch   = file(params.data_config)
     model_config_ch  = file(params.model_config)
     genome_fasta_ch  = file(params.genome_fasta)
