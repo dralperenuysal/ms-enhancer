@@ -1,0 +1,167 @@
+# Data Configuration for MS-ENHANCER-GEN
+#
+# Every GEO accession below was verified against live NCBI GEO SOFT metadata
+# (see `geo_datasets.verification`). Do NOT add an accession here without
+# recording its organism, library strategy and genome assembly as reported by
+# GEO — `GEODownloader.verify_dataset()` re-checks these at runtime and raises
+# if reality disagrees with this file.
+
+reference_genome:
+  url: "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz"
+  version: "hg38"
+  # UCSC hg38 == GRCh38 primary assembly. All peak sources below are aligned to
+  # GRCh38/hg38, so no liftover is performed anywhere in this pipeline.
+  equivalent_builds: ["hg38", "GRCh38"]
+  local_fasta: "data/hg38.fa"
+  primary_chromosomes:
+    - "chr1"
+    - "chr2"
+    - "chr3"
+    - "chr4"
+    - "chr5"
+    - "chr6"
+    - "chr7"
+    - "chr8"
+    - "chr9"
+    - "chr10"
+    - "chr11"
+    - "chr12"
+    - "chr13"
+    - "chr14"
+    - "chr15"
+    - "chr16"
+    - "chr17"
+    - "chr18"
+    - "chr19"
+    - "chr20"
+    - "chr21"
+    - "chr22"
+    - "chrX"
+    - "chrY"
+    - "chrM"
+
+sequence_encoding:
+  sequence_length: 1000
+  n_handling: "uniform" # Options: "uniform" ([0.25, 0.25, 0.25, 0.25]) or "zero" ([0.0, 0.0, 0.0, 0.0])
+  alphabet: ["A", "C", "G", "T"]
+  # Windows whose reference sequence is more than this fraction N are dropped.
+  max_n_fraction: 0.05
+  # Two windows closer than this are treated as the same regulatory element (the
+  # same peak called in several donors) and only the strongest is kept. At half the
+  # window length, retained windows overlap by at most 50%. This prevents the same
+  # element from landing in both the training and the validation split.
+  min_window_separation_bp: 500
+  # Keep only loci called in exactly one cell type. About half the pooled windows
+  # are the same element called in two or three cell types, which places
+  # near-identical sequences under conflicting condition vectors. Measured on the
+  # pooled windows, no lineage transcription factor separates the cell types; on
+  # the exclusive subset SPI1 (PU.1) is enriched 1.9x in microglia over CD4+ T
+  # cells (permutation p=1e-4). Set to false to train on the pooled windows, but
+  # then the cell-type condition is not expected to be learnable.
+  cell_type_exclusive_windows: true
+
+condition_encoding:
+  cell_types:
+    - "CD4_T_cell"
+    - "B_cell"
+    - "microglia"
+  normalization_method: "zscore" # Options: "zscore", "minmax"
+  continuous_features:
+    - "peak_score"
+    - "fold_enrichment"
+
+# ---------------------------------------------------------------------------
+# MS risk loci — GWAS Catalog, queried live (no hardcoded coordinates).
+# ---------------------------------------------------------------------------
+gwas:
+  source: "EBI GWAS Catalog REST API"
+  # NOTE: the MS trait is registered under MONDO_0005301, *not* EFO_0003885.
+  # EFO_0003885 returns HTTP 404 from the current API.
+  trait_id: "MONDO_0005301"
+  trait_label: "multiple sclerosis"
+  api_base: "https://www.ebi.ac.uk/gwas/rest/api"
+  # GWAS Catalog has reported variant coordinates on GRCh38 since release 2018-XX.
+  # `MSGWASLoci` asserts this matches reference_genome.version before writing BED.
+  genome_build: "GRCh38"
+  # Half-width of the window opened around each risk variant when intersecting
+  # with peaks. 100 kb each side is the conventional LD/regulatory neighbourhood.
+  locus_flank_bp: 100000
+  page_size: 500
+  output_bed: "data/bed/ms_gwas_loci_hg38.bed"
+
+# ---------------------------------------------------------------------------
+# Verified epigenomic datasets
+# ---------------------------------------------------------------------------
+geo_datasets:
+  verification:
+    verified_on: "2026-08-07"
+    method: >-
+      Fetched https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=<GSE>&targ=gsm&form=text&view=brief
+      and cross-checked !Sample_organism_ch1, !Sample_library_strategy,
+      !Sample_data_processing (Assembly:) and !Sample_characteristics_ch1 for every sample.
+    rejected:
+      # Kept as a record so these are never silently reintroduced.
+      - accession: "GSE173000"
+        reason: "Placeholder from the original project draft; never verified to exist or be relevant."
+      - accession: "GSE100738"
+        reason: "Mus musculus (ImmGen mouse ATAC-seq, 185 samples) — not human."
+      - accession: "GSE139133"
+        reason: "RNA-Seq of hCMEC/D3 brain microvessel endothelium (subdural hematoma) — not B-cell ATAC-seq, not MS."
+      - accession: "GSE177046"
+        reason: "RNA-Seq of EBV-infected Ramos B cells — not ATAC-seq, no peak calls."
+      - accession: "GSE118189"
+        reason: >-
+          Genuine human immune ATAC-seq (Calderon et al.) but supplementary data is a
+          single hg19 count matrix with no per-sample peak calls and no MS donors.
+          Superseded by GSE202087.
+
+  verified_datasets:
+    - accession: "GSE202087"
+      title: "Dissection of multiple sclerosis genetics identifies B and CD4+ T cells as driver cell subsets"
+      pubmed_id: "35672799"
+      url: "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE202087"
+      description: >-
+        ATAC-seq of FACS-sorted peripheral blood immune populations from human donors
+        with a diagnosis of multiple sclerosis (untreated or on glatiramer acetate,
+        interferon beta-1a, or natalizumab).
+      expected:
+        organism: "Homo sapiens"
+        library_strategy: "ATAC-seq"
+        genome_build: "GRCh38"
+        n_samples: 46
+      peak_format: "narrowPeak"
+      supplementary_regex: "\\.narrowPeak\\.gz$"
+      # GEO `cell type:` characteristic -> canonical label used by the model.
+      cell_type_map:
+        T4nv: "CD4_T_cell"   # CD4+ naive
+        T4cm: "CD4_T_cell"   # CD4+ central memory
+        T4em: "CD4_T_cell"   # CD4+ effector memory
+        T4ra: "CD4_T_cell"   # CD4+ TEMRA
+        cMBc: "B_cell"       # class-switched memory B cell
+        traB: "B_cell"       # transitional B cell
+
+    - accession: "GSE307262"
+      title: "Human myeloid ontogeny drives differentiation potential in the brain environment [ATAC-seq]"
+      url: "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE307262"
+      description: >-
+        ATAC-seq (HOMER findPeaks) of human CD34+ cord-blood-derived cells engrafted
+        into the CNS, i.e. microglia-like cells. CAVEAT: these are engrafted
+        CD34-derived microglia-like cells, NOT primary adult human microglia, and the
+        donors have no MS diagnosis. Used only as the microglia condition arm; any
+        conclusion drawn for microglia must state this limitation.
+      expected:
+        organism: "Homo sapiens"
+        library_strategy: "ATAC-seq"
+        genome_build: "hg38"
+        n_samples: 30
+      peak_format: "homer"
+      supplementary_regex: "\\.txt\\.gz$"
+      # HOMER series has no per-cell-type characteristic; select by sample title.
+      sample_title_regex: "^CD34_CNS_MG"
+      cell_type_default: "microglia"
+
+paths:
+  raw_dir: "data/raw"
+  bed_dir: "data/bed"
+  fasta_dir: "data/fasta"
+  processed_dir: "data/processed"

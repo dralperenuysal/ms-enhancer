@@ -1,0 +1,192 @@
+# Model & Training Configuration for MS-ENHANCER-GEN
+
+cvae:
+  sequence_length: 1000
+  in_channels: 4
+  condition_dim: 5  # e.g., 3 cell types (one-hot) + 2 continuous features
+  latent_dim: 128
+  hidden_dims: [64, 128, 256]
+  kernel_size: 7
+  stride: 1
+  padding: 3
+  beta: 1.0
+  kl_warmup_epochs: 10
+  seed: 42
+
+# Order-k Markov chain fitted per cell type on the real windows. Not a neural
+# model and not trained by train.py: it is fitted at generation time, in seconds.
+# On the cell-type-exclusive dataset it reproduces the SPI1 enrichment in
+# microglia (1.48x vs the real 1.63x, permutation p=2e-4) that the transformer
+# does not, so it is the generator the selection pipeline currently runs on.
+# Order 6 conditions on 6 preceding bases, i.e. it reproduces all 7-mer
+# frequencies of its training set; order 8 predicts held-out sequence slightly
+# better but its 65536 contexts are sparsely observed in ~2300 microglia windows.
+markov_baseline:
+  order: 6
+  pseudocount: 1.0
+
+genomic_transformer:
+  sequence_length: 1000
+  num_tokens: 4
+  condition_dim: 5
+  d_model: 128
+  nhead: 4
+  num_layers: 4
+  dim_feedforward: 256
+  dropout: 0.1
+  seed: 42
+
+training:
+  batch_size: 64
+  epochs: 100
+  learning_rate: 0.001
+  weight_decay: 0.00001
+  gpu_id: 0
+  seed: 42
+  checkpoint_dir: "models/generator"
+
+evaluation:
+  # Second, independently trained oracle. Indices were read off the targets file
+  # shipped with borzoi-pytorch (precomputed/targets.txt, 7611 tracks); each is
+  # followed by that file's own description. Borzoi carries a real ATAC:Microglia
+  # track, so unlike the Enformer section below the microglia arm here is not a
+  # monocyte proxy — the two oracles are therefore not symmetric for microglia.
+  borzoi:
+    model_name: "johahi/borzoi-replicate-0"
+    context_length: 524288
+    n_tracks: 7611
+    target_tracks_by_cell_type:
+      CD4_T_cell:
+        - 1338 # DNASE:naive thymus-derived CD4-positive, alpha-beta T cell male adult (26 years)
+        - 1524 # DNASE:CD4-positive, alpha-beta T cell male adult (37 years)
+        - 1733 # DNASE:CD4-positive, alpha-beta T cell male adult (21 year)
+        - 1771 # DNASE:CD4-positive, alpha-beta T cell female adult (33 years)
+        - 2089 # ATAC:T lymphocyte 2 (CD4+)
+      B_cell:
+        - 1336 # DNASE:B cell female adult (43 years)
+        - 1563 # DNASE:B cell male adult (37 years)
+        - 1630 # DNASE:B cell male adult (21 year)
+        - 1893 # DNASE:B cell female adult (34 years)
+      microglia:
+        - 2052 # ATAC:Microglia
+        - 1317 # DNASE:CD14-positive monocyte female
+        - 1668 # DNASE:CD14-positive monocyte male adult (21 year)
+        - 1784 # DNASE:CD14-positive monocyte male adult (37 years)
+    # Non-immune accessibility, so MSSI measures specificity rather than whether
+    # the locus is open at all.
+    background_tracks:
+      - 1302 # DNASE:hepatocyte
+      - 1319 # DNASE:osteoblast
+      - 1389 # DNASE:kidney epithelial cell
+      - 1392 # DNASE:skeletal muscle myoblast
+      - 1411 # DNASE:fibroblast of dermis female adult
+      - 1423 # DNASE:skeletal muscle cell
+
+  enformer:
+    model_name: "EleutherAI/enformer-official-rough"
+    context_length: 196608
+    # Track indices are enumerated explicitly and were read off the Enformer human
+    # targets file (calico/basenji, manuscripts/cross2020/targets_human.txt, 5313
+    # tracks). Each index below is followed by that file's own description.
+    #
+    # The previous values [4675, 4676, 4677] were CAGE pooled *universal reference
+    # RNA* tracks — the average of all tissues, i.e. the opposite of cell-type
+    # specific — and the background was brain/stem-cell DNase. Any MSSI computed
+    # with them was meaningless. Do not reintroduce them.
+    target_tracks_by_cell_type:
+      CD4_T_cell:
+        - 62    # DNASE:naive thymus-derived CD4-positive, alpha-beta T cell male adult (26 years)
+        - 248   # DNASE:CD4-positive, alpha-beta T cell male adult (37 years)
+        - 457   # DNASE:CD4-positive, alpha-beta T cell male adult (21 year)
+        - 495   # DNASE:CD4-positive, alpha-beta T cell female adult (33 years)
+        - 3127  # CHIP:H3K27ac:CD4-positive, alpha-beta T cell
+        - 3530  # CHIP:H3K27ac:naive thymus-derived CD4-positive, alpha-beta T cell
+        - 4196  # CHIP:H3K27ac:effector memory CD4-positive, alpha-beta T cell
+      B_cell:
+        - 60    # DNASE:B cell female adult (43 years)
+        - 287   # DNASE:B cell male adult (37 years)
+        - 354   # DNASE:B cell male adult (21 year)
+        - 617   # DNASE:B cell female adult (34 years)
+        - 853   # CHIP:H3K27ac:B cell female adult (27 years)
+        - 2047  # CHIP:H3K27ac:B cell male adult (37 years)
+      microglia:
+        # CAVEAT: Enformer's human head contains NO microglia track. These are
+        # CD14+ monocyte / macrophage tracks used as the nearest available myeloid
+        # proxy. Microglia are yolk-sac-derived and transcriptionally distinct from
+        # monocytes, so microglia MSSI values are a myeloid-lineage proxy score and
+        # must be reported as such, never as a microglia measurement.
+        - 41    # DNASE:CD14-positive monocyte female
+        - 392   # DNASE:CD14-positive monocyte male adult (21 year)
+        - 508   # DNASE:CD14-positive monocyte male adult (37 years)
+        - 517   # DNASE:CD14-positive monocyte female adult (34 years)
+        - 817   # CHIP:H3K27ac:CD14-positive monocyte female
+        - 1487  # CHIP:H3K27ac:CD14-positive monocyte male adult (21 year)
+      K562:
+        # NOT a design target. This entry exists only as the positive control for
+        # the MPRA calibration: measured K562 reporter activity is available for
+        # the same elements, so scoring them against K562 tracks tests whether the
+        # MSSI construction can track measured activity at all, separately from
+        # whether the CD4 tracks are the right ones to point at a Jurkat assay.
+        # Asymmetry to report: the human targets file contains no K562 H3K27ac
+        # track, so this set is DNase-only while CD4_T_cell mixes DNase and H3K27ac.
+        - 121   # DNASE:K562
+        - 122   # DNASE:K562
+        - 123   # DNASE:K562
+        - 625   # DNASE:K562
+    # Fixed panel of non-immune, non-CNS tissues. Fixed, never sampled at runtime:
+    # a background drawn randomly would make MSSI values incomparable between runs.
+    background_tracks:
+      - 27    # DNASE:HepG2 (hepatocyte carcinoma)
+      - 42    # DNASE:keratinocyte female
+      - 43    # DNASE:osteoblast
+      - 111   # DNASE:fibroblast of lung
+      - 116   # DNASE:skeletal muscle myoblast
+      - 234   # DNASE:HepG2
+    targets_file_url: "https://raw.githubusercontent.com/calico/basenji/master/manuscripts/cross2020/targets_human.txt"
+    n_tracks: 5313
+  # Composition checks that need no model — run these before any oracle scoring.
+  # An oracle returns a plausible-looking number for uniformly random DNA, so
+  # these decide whether the generator produced anything genome-like at all.
+  sequence_realism:
+    kmer_sizes: [2, 4, 6]
+    control_seed: 0
+
+  motif_analysis:
+    # Real position weight matrices from JASPAR, resolved by TF name at startup.
+    # Every name here must exist in the release below or initialisation fails —
+    # this list is the source of truth, not a filter over hardcoded patterns.
+    jaspar_release: "JASPAR2024"
+    jaspar_collection: "CORE"
+    jaspar_species: "9606" # Homo sapiens
+    # Cutoff on the normalised 0-1 score, where 1.0 is the matrix optimum. 0.8 is
+    # the conventional threshold for reporting a putative binding site.
+    relative_score_threshold: 0.8
+    # Two groups. The first four are general immune/inflammatory factors and are
+    # shared by all three cell types, so they measure whether a sequence looks
+    # like immune regulatory DNA at all — they cannot separate the cell types.
+    # The rest are lineage-defining factors, chosen so each cell type has an
+    # arm that the other two should lack; they are what a cell-type-conditioned
+    # generator has to reproduce for the conditioning to mean anything.
+    # POU2AF1 and SALL1 are omitted: both are lineage markers but neither binds
+    # DNA directly, so JASPAR has no matrix for them.
+    tfs:
+      # shared immune
+      - "NFKB1"
+      - "STAT3"
+      - "IRF4"
+      - "RUNX1"
+      # CD4+ T cell
+      - "TCF7"
+      - "LEF1"
+      - "GATA3"
+      - "TBX21"
+      - "ETS1"
+      # B cell
+      - "PAX5"
+      - "EBF1"
+      - "SPIB"
+      - "POU2F2"
+      # microglia / myeloid
+      - "SPI1"
+      - "IRF8"
+      - "CEBPA"

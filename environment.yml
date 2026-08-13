@@ -1,0 +1,35 @@
+# Conda environment for MS-ENHANCER-GEN.
+#
+# Mirrors requirements.txt; see that file for why each package is here and for
+# the record of packages deliberately excluded (GEOparse, pybedtools, macs3,
+# pyBigWig, pyranges, scanpy, ...).
+#
+# The pytorch-cuda pin must match the driver on the target machine. The GPU used
+# for this project (Tesla T4, driver 580, CUDA 13.0) runs torch 2.9.1+cu129.
+
+name: ms_enhancer
+channels:
+  - conda-forge
+  - pytorch
+  - nvidia
+dependencies:
+  - python=3.10
+  # torch >= 2.4 is required for the torch.amp.GradScaler(device_type) API.
+  - pytorch>=2.4
+  - pytorch-cuda=12.1
+  - numpy>=1.24
+  - pandas>=2.0
+  - pyyaml>=6.0
+  - biopython>=1.80
+  - pytest>=7.0
+  - pip
+  - pip:
+      # Not packaged on conda-forge at the versions this project was verified on.
+      - pyfaidx>=0.7
+      - pyjaspar>=4.0.0
+      # Optional oracles. Install in this order: enformer-pytorch declares
+      # transformers==4.56.2 but works under the 4.57.6 that borzoi-pytorch
+      # installs, so the resolver warning that follows is expected. See
+      # requirements.txt for the verification note.
+      - enformer-pytorch
+      - borzoi-pytorch

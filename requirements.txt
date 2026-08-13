@@ -1,0 +1,56 @@
+# MS-ENHANCER-GEN runtime dependencies.
+#
+# Every entry below is imported somewhere in src/, tests/ or the top-level
+# scripts. Nothing is listed "in case we need it" — an unused dependency is a
+# claim about the pipeline that the code does not back up.
+#
+# Verified working: torch 2.9.1+cu129 / numpy 2.2.6 / pandas 2.3.3 (Tesla T4,
+# Python 3.10) and torch 2.13.0 / numpy 2.4.6 / pandas 3.0.3 (CPU, Python 3.12).
+
+# Install the CUDA build for your driver, e.g.:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
+# torch >= 2.4 is required for the torch.amp.GradScaler(device_type) API used by
+# train.py --amp.
+torch>=2.4
+
+numpy>=1.24
+pandas>=2.0
+pyyaml>=6.0
+
+# Sequence I/O and PWM scanning (Bio.SeqIO, Bio.motifs.jaspar).
+biopython>=1.80
+# Indexed random access to hg38, so the 3.2 GB reference is never loaded into RAM.
+pyfaidx>=0.7
+# Ships the JASPAR database locally; motif scanning performs no network access.
+pyjaspar>=4.0.0
+
+pytest>=7.0
+
+# In-silico oracles. Both are optional: only evaluate.py --oracle enformer and
+# --oracle borzoi need them, and each pulls a large model download on first use.
+#
+# Version conflict, deliberately left unpinned: enformer-pytorch 0.8.12 declares
+# transformers==4.56.2, while borzoi-pytorch installs 4.57.6 and pip reports the
+# clash. Both models were verified to load and score correctly under 4.57.6, so
+# the declared pin is stricter than the actual requirement. Pinning transformers
+# back to 4.56.2 would break borzoi-pytorch instead. Install enformer first, then
+# borzoi, and ignore the resolver warning.
+enformer-pytorch
+borzoi-pytorch
+
+# ---------------------------------------------------------------------------
+# Deliberately NOT dependencies (kept as a record so they are not reintroduced):
+#
+#   GEOparse   - geo_downloader.py parses GEO SOFT metadata directly, so that it
+#                can verify organism/assembly/sample counts against
+#                configs/data_config.yaml instead of trusting the accession.
+#   pybedtools - requires a bedtools binary that is not present in the target
+#                container. bed_processor.py implements the one operation needed
+#                (is this summit inside any risk locus?) on sorted NumPy arrays.
+#   macs3      - peak calling is not performed here; peak files are downloaded
+#                from GEO already called by the original authors.
+#   pyBigWig   - no bigWig file is read anywhere in the pipeline.
+#   pyranges   - superseded by the same NumPy interval logic as pybedtools.
+#   scanpy     - no single-cell object is constructed; only peak tables are used.
+#   scikit-learn, tqdm, wandb, torchvision, torchaudio - never imported.
+# ---------------------------------------------------------------------------

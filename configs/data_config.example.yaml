@@ -1,0 +1,111 @@
+# Template for configs/data_config.yaml when adapting this pipeline to a
+# different disease / risk-locus set / GEO dataset. Copy this file to
+# data_config.yaml and fill in the placeholders — see docs/REPRODUCING.md for
+# where to find each value and what GEODownloader.verify_dataset() checks.
+
+reference_genome:
+  url: "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz"
+  version: "hg38"
+  equivalent_builds: ["hg38", "GRCh38"]
+  local_fasta: "data/hg38.fa"
+  primary_chromosomes:
+    - "chr1"
+    - "chr2"
+    - "chr3"
+    - "chr4"
+    - "chr5"
+    - "chr6"
+    - "chr7"
+    - "chr8"
+    - "chr9"
+    - "chr10"
+    - "chr11"
+    - "chr12"
+    - "chr13"
+    - "chr14"
+    - "chr15"
+    - "chr16"
+    - "chr17"
+    - "chr18"
+    - "chr19"
+    - "chr20"
+    - "chr21"
+    - "chr22"
+    - "chrX"
+    - "chrY"
+    - "chrM"
+
+sequence_encoding:
+  sequence_length: 1000
+  n_handling: "uniform"
+  alphabet: ["A", "C", "G", "T"]
+  max_n_fraction: 0.05
+  min_window_separation_bp: 500
+  cell_type_exclusive_windows: true
+
+condition_encoding:
+  # Must match the values used as targets in geo_datasets.*.cell_type_map below.
+  cell_types:
+    - "CELL_TYPE_A"
+    - "CELL_TYPE_B"
+  normalization_method: "zscore"
+  continuous_features:
+    - "peak_score"
+    - "fold_enrichment"
+
+# ---------------------------------------------------------------------------
+# Risk loci — GWAS Catalog, queried live (no hardcoded coordinates).
+# Find trait_id/trait_label at https://www.ebi.ac.uk/gwas/ (search your trait,
+# the MONDO/EFO id is in the URL). trait_label must match the GWAS Catalog
+# trait name exactly, or the API returns 404.
+# ---------------------------------------------------------------------------
+gwas:
+  source: "EBI GWAS Catalog REST API"
+  trait_id: "EFO_XXXXXXX"
+  trait_label: "REPLACE_WITH_EXACT_GWAS_CATALOG_TRAIT_NAME"
+  api_base: "https://www.ebi.ac.uk/gwas/rest/api"
+  genome_build: "GRCh38"
+  locus_flank_bp: 100000
+  page_size: 500
+  output_bed: "data/bed/risk_loci_hg38.bed"
+
+# ---------------------------------------------------------------------------
+# Epigenomic datasets. Each accession is verified at runtime against live GEO
+# SOFT metadata (organism, library_strategy, genome_build, n_samples) — see
+# docs/REPRODUCING.md. Never add an accession without checking its metadata
+# first; a rejected/mismatched one raises DatasetVerificationError.
+# ---------------------------------------------------------------------------
+geo_datasets:
+  verification:
+    verified_on: "REPLACE_WITH_DATE_YOU_CHECKED_GEO"
+    method: >-
+      Fetched https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=<GSE>&targ=gsm&form=text&view=brief
+      and cross-checked !Sample_organism_ch1, !Sample_library_strategy,
+      !Sample_data_processing (Assembly:) and !Sample_characteristics_ch1 for every sample.
+
+  verified_datasets:
+    - accession: "GSEXXXXXXX"
+      title: "REPLACE_WITH_DATASET_TITLE"
+      url: "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSEXXXXXXX"
+      description: "REPLACE — what this dataset is and why it fits your trait."
+      expected:
+        organism: "Homo sapiens"
+        library_strategy: "ATAC-seq"
+        genome_build: "GRCh38"
+        n_samples: 0 # REPLACE with the sample count GEO reports
+      peak_format: "narrowPeak" # or "homer", matching the series' processed files
+      supplementary_regex: "\\.narrowPeak\\.gz$"
+      # GEO `cell type:` characteristic -> canonical label used by condition_encoding.cell_types.
+      cell_type_map:
+        GEO_CHARACTERISTIC_CODE_A: "CELL_TYPE_A"
+        GEO_CHARACTERISTIC_CODE_B: "CELL_TYPE_B"
+      # Use instead of cell_type_map when the series has no `cell type:`
+      # characteristic and samples must be selected by title pattern:
+      # sample_title_regex: "^SOME_PREFIX"
+      # cell_type_default: "CELL_TYPE_A"
+
+paths:
+  raw_dir: "data/raw"
+  bed_dir: "data/bed"
+  fasta_dir: "data/fasta"
+  processed_dir: "data/processed"

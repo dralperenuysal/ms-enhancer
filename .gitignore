@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Environments / secrets
+.env
+.env.*
+*.key
+*.pem
+
+# Data: reference genome, raw/processed windows, generated FASTA/BED, MPRA
+# library — large and regenerable from the pipeline entry points in
+# reports/2026-08-10_conditional-cre-generation.md §8, not source.
+data/
+
+# Model checkpoints
+models/
+
+# Run logs
+logs/
+
+# graphify knowledge-graph cache (local dev tool, rebuilt with `graphify update .`)
+graphify-out/
+
+# LaTeX build artifacts (keep main.tex, references.bib, sn-*.cls/.bst, main.pdf)
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.toc
+paper/*.bbl
+paper/*.blg
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.synctex.gz
+paper/
+
+# Scripts not part of the manuscript's reproducibility pipeline
+# (see reports/2026-08-10_conditional-cre-generation.md §8 for the tracked list)
+scripts/compare_motif_grammar.py
+scripts/make_figures.py
+scripts/make_new_figures.py
+
+# Internal result notes — content is folded into the manuscript (paper/main.tex)
+reports/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Editor/OS cruft
+.DS_Store
+
+AGENTS.md
