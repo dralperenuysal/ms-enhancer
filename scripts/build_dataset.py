@@ -56,26 +56,54 @@ def extract_clean_accession(val: str) -> str:
 
 
 def ensure_reference_genome(config: dict) -> str:
-    """Ensure the local reference genome FASTA exists, downloading and extracting if needed."""
+    """Ensure the local reference genome FASTA exists, checking local project and downloading if needed."""
     import gzip
     import shutil
+    import subprocess
     import urllib.request
 
     ref = config.get("reference_genome", {})
     local_fasta = ref.get("local_fasta", "data/hg38.fa")
+    
+    # Check if already present in workdir or parent repo
     if os.path.exists(local_fasta):
         return local_fasta
+
+    # Check if present in parent repo directory
+    for candidate in [os.path.join("..", "..", local_fasta), os.path.abspath(local_fasta)]:
+        if os.path.exists(candidate):
+            os.makedirs(os.path.dirname(local_fasta) or ".", exist_ok=True)
+            try:
+                os.symlink(os.path.abspath(candidate), local_fasta)
+                logger.info("Symlinked existing reference genome from %s -> %s", candidate, local_fasta)
+                return local_fasta
+            except OSError:
+                pass
 
     url = ref.get("url", "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz")
     logger.info("Reference genome FASTA not found at %s. Downloading from %s...", local_fasta, url)
     os.makedirs(os.path.dirname(local_fasta) or ".", exist_ok=True)
     gz_path = local_fasta + ".gz"
 
-    urllib.request.urlretrieve(url, gz_path)
+    # Try fast wget/curl if available, fallback to urllib
+    downloaded = False
+    if shutil.which("wget"):
+        res = subprocess.run(["wget", "-c", url, "-O", gz_path], capture_output=False)
+        downloaded = (res.returncode == 0 and os.path.exists(gz_path))
+    elif shutil.which("curl"):
+        res = subprocess.run(["curl", "-L", url, "-o", gz_path], capture_output=False)
+        downloaded = (res.returncode == 0 and os.path.exists(gz_path))
+
+    if not downloaded:
+        logger.info("Downloading via python urllib...")
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req) as resp, open(gz_path, "wb") as out_f:
+            shutil.copyfileobj(resp, out_f, length=16 * 1024 * 1024)
+
     logger.info("Extracting %s -> %s ...", gz_path, local_fasta)
     with gzip.open(gz_path, "rb") as f_in:
         with open(local_fasta, "wb") as f_out:
-            shutil.copyfileobj(f_in, f_out)
+            shutil.copyfileobj(f_in, f_out, length=16 * 1024 * 1024)
 
     if os.path.exists(gz_path):
         os.remove(gz_path)

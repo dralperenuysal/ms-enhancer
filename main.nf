@@ -40,6 +40,7 @@ process BUILD_DATASET {
 
     input:
     path data_cfg
+    path genome_fa
 
     output:
     path "processed/processed_dataset.pt", emit: processed_pt
@@ -55,6 +56,10 @@ process BUILD_DATASET {
     def suffix_arg = "--suffix '${params.suffix}'"
     """
     export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
+    mkdir -p data
+    if [ -f "${genome_fa}" ]; then
+        ln -s \$(readlink -f ${genome_fa}) data/hg38.fa
+    fi
 
     python ${projectDir}/scripts/build_dataset.py \
         --config ${data_cfg} \
@@ -233,7 +238,7 @@ workflow {
     genome_fasta_ch  = file(params.genome_fasta)
 
     // Step 1: Build dataset
-    BUILD_DATASET(data_config_ch)
+    BUILD_DATASET(data_config_ch, genome_fasta_ch)
 
     // Step 2: Train model
     TRAIN_MODEL(model_config_ch, BUILD_DATASET.out.processed_pt)
