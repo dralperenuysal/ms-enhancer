@@ -9,9 +9,9 @@
 
 name: ms_enhancer
 channels:
-  - conda-forge
   - pytorch
   - nvidia
+  - conda-forge
 dependencies:
   - python=3.10
   # torch >= 2.4 is required for the torch.amp.GradScaler(device_type) API.
