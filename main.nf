@@ -80,7 +80,6 @@ process BUILD_DATASET {
 process TRAIN_MODEL {
     tag "Training ${params.model_type} (${params.epochs} epochs)"
     publishDir "${params.outdir}/models", mode: 'copy'
-    accelerator 1, type: 'nvidia-gpu'
 
     input:
     path model_cfg
@@ -115,7 +114,6 @@ process TRAIN_MODEL {
 process GENERATE_SEQUENCES {
     tag "Sampling ${params.num_samples} sequences for ${params.cell_type}"
     publishDir "${params.outdir}/candidates", mode: 'copy'
-    accelerator 1, type: 'nvidia-gpu'
 
     input:
     path checkpoint
@@ -155,7 +153,6 @@ process GENERATE_SEQUENCES {
 process EVALUATE_ORACLE {
     tag "Scoring with ${params.oracle} oracle"
     publishDir "${params.outdir}/evaluation", mode: 'copy'
-    accelerator 1, type: 'nvidia-gpu'
 
     input:
     path candidates_fasta
