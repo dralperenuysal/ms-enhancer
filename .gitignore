@@ -51,4 +51,11 @@ reports/
 # Editor/OS cruft
 .DS_Store
 
+# Nextflow runtime artifacts & outputs
+.nextflow/
+.nextflow.log*
+work/
+pipeline_info/
+results_*/
+
 AGENTS.md

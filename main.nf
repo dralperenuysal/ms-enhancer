@@ -54,7 +54,9 @@ process BUILD_DATASET {
     def cell_arg  = params.cell_type ? "--cell_type '${params.cell_type}'" : ""
     def suffix_arg = "--suffix '${params.suffix}'"
     """
-    python scripts/build_dataset.py \
+    export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
+
+    python ${projectDir}/scripts/build_dataset.py \
         --config ${data_cfg} \
         ${suffix_arg} \
         ${gwas_args} \
@@ -86,10 +88,11 @@ process TRAIN_MODEL {
 
     script:
     """
+    export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
     mkdir -p models/generator logs data/processed
     ln -s \$(readlink -f ${dataset_pt}) data/processed/processed_dataset.pt
 
-    python train.py \
+    python ${projectDir}/train.py \
         --config ${model_cfg} \
         --model_type ${params.model_type} \
         --data_path data/processed/processed_dataset.pt \
@@ -123,13 +126,14 @@ process GENERATE_SEQUENCES {
 
     script:
     """
+    export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
     mkdir -p data/fasta data/processed logs
 
     ln -s \$(readlink -f ${dataset_pt}) data/processed/processed_dataset.pt
     ln -s \$(readlink -f ${windows_fasta}) data/fasta/ms_windows_1000bp.fasta
     ln -s \$(readlink -f ${windows_meta}) data/fasta/ms_windows_metadata.csv
 
-    python generate.py \
+    python ${projectDir}/generate.py \
         --checkpoint ${checkpoint} \
         --config ${model_cfg} \
         --cell_type ${params.cell_type} \
@@ -160,10 +164,11 @@ process EVALUATE_ORACLE {
 
     script:
     """
+    export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
     mkdir -p logs data
     ln -s \$(readlink -f ${genome_fa}) data/hg38.fa
 
-    python evaluate.py \
+    python ${projectDir}/evaluate.py \
         --input_fasta ${candidates_fasta} \
         --metadata ${candidates_meta} \
         --oracle ${params.oracle} \
@@ -190,9 +195,10 @@ process SELECT_CANDIDATES {
 
     script:
     """
+    export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
     mkdir -p logs
 
-    python scripts/select_candidates.py \
+    python ${projectDir}/scripts/select_candidates.py \
         --report ${eval_report} \
         --fasta ${candidates_fasta} \
         --metadata ${candidates_meta} \

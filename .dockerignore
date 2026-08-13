@@ -9,3 +9,8 @@ reports/
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
+.nextflow/
+.nextflow.log*
+work/
+pipeline_info/
+results_*/
