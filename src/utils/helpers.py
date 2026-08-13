@@ -137,11 +137,13 @@ def get_device(gpu_id: Optional[int] = 0) -> torch.device:
     Returns:
         torch.device object.
     """
-    if torch.cuda.is_available() and gpu_id is not None and gpu_id >= 0:
+    cuda_avail = torch.cuda.is_available()
+    device_count = torch.cuda.device_count() if cuda_avail else 0
+    if cuda_avail and gpu_id is not None and gpu_id >= 0 and device_count > 0:
         device = torch.device(f"cuda:{gpu_id}")
-        logger.info(f"Using GPU device: {torch.cuda.get_device_name(device)}")
+        logger.info(f"Using GPU device: {torch.cuda.get_device_name(device)} (CUDA {torch.version.cuda}, {device_count} GPUs available).")
     else:
         device = torch.device("cpu")
-        logger.info("CUDA not available or disabled. Running on CPU.")
+        logger.info(f"CUDA not available or disabled (is_available={cuda_avail}, count={device_count}, CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES')}). Running on CPU.")
 
     return device
