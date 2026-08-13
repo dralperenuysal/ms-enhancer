@@ -21,6 +21,8 @@ nextflow run dralperenuysal/ms-enhancer -profile docker --suffix "ms"
 
 All outputs, models, Enformer scores, and HTML execution reports are automatically placed in `results_ms/`.
 
+> **Cloud GPU Instances (Vast.ai, RunPod, Lambda Labs):** Since cloud instances are already isolated containers without nested Docker, run Nextflow natively: `nextflow run main.nf --suffix "ms"`. See [**`docs/REPRODUCING.md`**](docs/REPRODUCING.md#4-running-on-cloud-gpu-platforms-vastai-runpod-lambda-labs) for details.
+
 To run this pipeline on a **different disease** (e.g. Ulcerative Colitis, Alzheimer's) or custom GEO dataset, see [**`docs/REPRODUCING.md`**](docs/REPRODUCING.md).
 
 ---

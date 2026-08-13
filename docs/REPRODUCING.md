@@ -49,7 +49,7 @@ If you have complex multi-GSE series or custom cell-type mapping rules:
 
 ## 3. Manual Docker Execution
 
-If running step-by-step with the pre-built Docker image:
+If running step-by-step with the pre-built Docker image on a standard Linux host:
 
 ```bash
 docker run --gpus all --rm -it \
@@ -70,7 +70,39 @@ Mount `configs/` and `data/` so outputs persist on the host with your user's per
 
 ---
 
-## 4. Pipeline Outputs & Deliverables
+## 4. Running on Cloud GPU Platforms (Vast.ai, RunPod, Lambda Labs)
+
+Cloud instances (like Vast.ai or RunPod) are **already running inside an isolated Docker container** with native GPU drivers and CUDA. Because Docker-in-Docker is not present by default, running with `-profile docker` will fail with `docker: command not found`.
+
+On these instances, run Nextflow **natively** using the host's Conda environment and GPU:
+
+```bash
+# 1. Clone repo and create environment
+git clone https://github.com/dralperenuysal/ms-enhancer.git
+cd ms-enhancer
+conda env create -f environment.yml
+conda activate ms_enhancer
+
+# 2. Prepare the reference genome (hg38)
+mkdir -p data
+wget -c https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz -O data/hg38.fa.gz
+gunzip data/hg38.fa.gz
+
+# 3. Run Nextflow natively (using host GPU)
+nextflow run main.nf --suffix "ms"
+
+# Or for a different disease:
+nextflow run main.nf \
+  --suffix "uc" \
+  --gwas_id "EFO_0000729" \
+  --gwas_label "ulcerative colitis" \
+  --gse "GSE282442" \
+  --cell_type "epithelial_inflamed"
+```
+
+---
+
+## 5. Pipeline Outputs & Deliverables
 
 Every entry point logs to stdout and saves structured deliverables under `results_${suffix}/` (or mounted volumes):
 
@@ -85,7 +117,7 @@ Every entry point logs to stdout and saves structured deliverables under `result
 
 ---
 
-## 5. Setting the GWAS Risk-Locus Trait
+## 6. Setting the GWAS Risk-Locus Trait
 
 `gwas.trait_id` / `gwas.trait_label` (`src/data_processing/gwas_loci.py`, `MSGWASLoci`) are the only disease-identifying fields for locus retrieval:
 
@@ -95,7 +127,7 @@ Every entry point logs to stdout and saves structured deliverables under `result
 
 ---
 
-## 6. GEO Dataset Verification
+## 7. GEO Dataset Verification
 
 Each entry under `geo_datasets.verified_datasets` is checked at runtime by `GEODownloader.verify_dataset()` against live GEO SOFT metadata:
 
