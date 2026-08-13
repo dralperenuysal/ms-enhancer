@@ -13,16 +13,16 @@ __pycache__/
 # Data: reference genome, raw/processed windows, generated FASTA/BED, MPRA
 # library — large and regenerable from the pipeline entry points in
 # reports/2026-08-10_conditional-cre-generation.md §8, not source.
-data/
+/data/
 
-# Model checkpoints
-models/
+# Model checkpoints (root directory only)
+/models/
 
-# Run logs
-logs/
+# Run logs (root directory only)
+/logs/
 
 # graphify knowledge-graph cache (local dev tool, rebuilt with `graphify update .`)
-graphify-out/
+/graphify-out/
 
 # LaTeX build artifacts (keep main.tex, references.bib, sn-*.cls/.bst, main.pdf)
 paper/*.aux
