@@ -55,6 +55,35 @@ def extract_clean_accession(val: str) -> str:
     return match.group(1) if match else val.strip()
 
 
+def ensure_reference_genome(config: dict) -> str:
+    """Ensure the local reference genome FASTA exists, downloading and extracting if needed."""
+    import gzip
+    import shutil
+    import urllib.request
+
+    ref = config.get("reference_genome", {})
+    local_fasta = ref.get("local_fasta", "data/hg38.fa")
+    if os.path.exists(local_fasta):
+        return local_fasta
+
+    url = ref.get("url", "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz")
+    logger.info("Reference genome FASTA not found at %s. Downloading from %s...", local_fasta, url)
+    os.makedirs(os.path.dirname(local_fasta) or ".", exist_ok=True)
+    gz_path = local_fasta + ".gz"
+
+    urllib.request.urlretrieve(url, gz_path)
+    logger.info("Extracting %s -> %s ...", gz_path, local_fasta)
+    with gzip.open(gz_path, "rb") as f_in:
+        with open(local_fasta, "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out)
+
+    if os.path.exists(gz_path):
+        os.remove(gz_path)
+
+    logger.info("Reference genome prepared successfully at %s.", local_fasta)
+    return local_fasta
+
+
 def main() -> None:
     args = parse_args()
     setup_logging(log_file="logs/build_dataset.log")
@@ -118,6 +147,7 @@ def main() -> None:
             manifest = json.load(f)
 
     # 5. Build 1000 bp windows and extract FASTA
+    ensure_reference_genome(config)
     processor = BEDProcessor(config_path=effective_config_path)
     windows = processor.build_windows(manifest)
     processor.write_bed(windows)
