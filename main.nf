@@ -84,9 +84,12 @@ process BUILD_DATASET {
     def suffix_arg = "--suffix '${params.suffix}'"
     """
     export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
-    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
-        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
-        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    if command -v conda >/dev/null 2>&1; then
+        ENV_PATH=\$(conda env list | awk '\$1 == "ms_enhancer" {print \$NF}')
+        if [ -n "\$ENV_PATH" ]; then
+            export PATH="\$ENV_PATH/bin:\$PATH"
+            export LD_LIBRARY_PATH="\$ENV_PATH/lib:\${LD_LIBRARY_PATH:-}"
+        fi
     fi
     mkdir -p data
     if [ -f "${genome_fa}" ]; then
@@ -125,9 +128,12 @@ process TRAIN_MODEL {
     script:
     """
     export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
-    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
-        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
-        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    if command -v conda >/dev/null 2>&1; then
+        ENV_PATH=\$(conda env list | awk '\$1 == "ms_enhancer" {print \$NF}')
+        if [ -n "\$ENV_PATH" ]; then
+            export PATH="\$ENV_PATH/bin:\$PATH"
+            export LD_LIBRARY_PATH="\$ENV_PATH/lib:\${LD_LIBRARY_PATH:-}"
+        fi
     fi
     mkdir -p models/generator logs data/processed
     ln -s \$(readlink -f ${dataset_pt}) data/processed/processed_dataset.pt
@@ -166,9 +172,12 @@ process GENERATE_SEQUENCES {
     script:
     """
     export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
-    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
-        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
-        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    if command -v conda >/dev/null 2>&1; then
+        ENV_PATH=\$(conda env list | awk '\$1 == "ms_enhancer" {print \$NF}')
+        if [ -n "\$ENV_PATH" ]; then
+            export PATH="\$ENV_PATH/bin:\$PATH"
+            export LD_LIBRARY_PATH="\$ENV_PATH/lib:\${LD_LIBRARY_PATH:-}"
+        fi
     fi
     mkdir -p data/fasta data/processed logs
 
@@ -207,9 +216,12 @@ process SELECT_CANDIDATES {
     script:
     """
     export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
-    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
-        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
-        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    if command -v conda >/dev/null 2>&1; then
+        ENV_PATH=\$(conda env list | awk '\$1 == "ms_enhancer" {print \$NF}')
+        if [ -n "\$ENV_PATH" ]; then
+            export PATH="\$ENV_PATH/bin:\$PATH"
+            export LD_LIBRARY_PATH="\$ENV_PATH/lib:\${LD_LIBRARY_PATH:-}"
+        fi
     fi
     mkdir -p logs
 
@@ -246,9 +258,12 @@ process AUDIT_OCCLUSION {
     script:
     """
     export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
-    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
-        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
-        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    if command -v conda >/dev/null 2>&1; then
+        ENV_PATH=\$(conda env list | awk '\$1 == "ms_enhancer" {print \$NF}')
+        if [ -n "\$ENV_PATH" ]; then
+            export PATH="\$ENV_PATH/bin:\$PATH"
+            export LD_LIBRARY_PATH="\$ENV_PATH/lib:\${LD_LIBRARY_PATH:-}"
+        fi
     fi
     mkdir -p logs
     python ${projectDir}/scripts/occlusion_scan.py \
@@ -281,9 +296,12 @@ process AUDIT_MOTIF_ABLATION {
     script:
     """
     export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
-    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
-        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
-        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    if command -v conda >/dev/null 2>&1; then
+        ENV_PATH=\$(conda env list | awk '\$1 == "ms_enhancer" {print \$NF}')
+        if [ -n "\$ENV_PATH" ]; then
+            export PATH="\$ENV_PATH/bin:\$PATH"
+            export LD_LIBRARY_PATH="\$ENV_PATH/lib:\${LD_LIBRARY_PATH:-}"
+        fi
     fi
     mkdir -p logs
     python ${projectDir}/scripts/motif_ablation.py \
@@ -317,9 +335,12 @@ process AUDIT_CPG_SWAP {
     script:
     """
     export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
-    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
-        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
-        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    if command -v conda >/dev/null 2>&1; then
+        ENV_PATH=\$(conda env list | awk '\$1 == "ms_enhancer" {print \$NF}')
+        if [ -n "\$ENV_PATH" ]; then
+            export PATH="\$ENV_PATH/bin:\$PATH"
+            export LD_LIBRARY_PATH="\$ENV_PATH/lib:\${LD_LIBRARY_PATH:-}"
+        fi
     fi
     mkdir -p logs
     python ${projectDir}/scripts/cpg_swap.py \
@@ -352,9 +373,12 @@ process AUDIT_LOCUS_SURVEY {
     script:
     """
     export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
-    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
-        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
-        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    if command -v conda >/dev/null 2>&1; then
+        ENV_PATH=\$(conda env list | awk '\$1 == "ms_enhancer" {print \$NF}')
+        if [ -n "\$ENV_PATH" ]; then
+            export PATH="\$ENV_PATH/bin:\$PATH"
+            export LD_LIBRARY_PATH="\$ENV_PATH/lib:\${LD_LIBRARY_PATH:-}"
+        fi
     fi
     mkdir -p logs
     python ${projectDir}/scripts/locus_survey.py \
@@ -388,9 +412,12 @@ process AUDIT_GRAMMAR {
     script:
     """
     export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
-    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
-        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
-        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    if command -v conda >/dev/null 2>&1; then
+        ENV_PATH=\$(conda env list | awk '\$1 == "ms_enhancer" {print \$NF}')
+        if [ -n "\$ENV_PATH" ]; then
+            export PATH="\$ENV_PATH/bin:\$PATH"
+            export LD_LIBRARY_PATH="\$ENV_PATH/lib:\${LD_LIBRARY_PATH:-}"
+        fi
     fi
     mkdir -p logs
     python ${projectDir}/scripts/compare_selected_grammar.py \

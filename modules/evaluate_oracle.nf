@@ -22,9 +22,12 @@ process EVALUATE_ORACLE {
     script:
     """
     export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
-    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
-        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
-        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    if command -v conda >/dev/null 2>&1; then
+        ENV_PATH=\$(conda env list | awk '\$1 == "ms_enhancer" {print \$NF}')
+        if [ -n "\$ENV_PATH" ]; then
+            export PATH="\$ENV_PATH/bin:\$PATH"
+            export LD_LIBRARY_PATH="\$ENV_PATH/lib:\${LD_LIBRARY_PATH:-}"
+        fi
     fi
     mkdir -p logs data
     ln -s \$(readlink -f ${genome_fa}) data/hg38.fa
