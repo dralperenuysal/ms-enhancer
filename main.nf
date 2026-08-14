@@ -1,15 +1,6 @@
 #!/usr/bin/env nextflow
 nextflow.enable.dsl = 2
 
-// EVALUATE_ORACLE included once per call site: Nextflow forbids invoking the
-// same process more than once from a single script, so the main scoring call
-// and each audit-rescoring call get their own alias.
-include { EVALUATE_ORACLE as EVALUATE_MAIN            } from './modules/evaluate_oracle.nf'
-include { EVALUATE_ORACLE as EVALUATE_OCCLUSION       } from './modules/evaluate_oracle.nf'
-include { EVALUATE_ORACLE as EVALUATE_MOTIF_ABLATION  } from './modules/evaluate_oracle.nf'
-include { EVALUATE_ORACLE as EVALUATE_CPG_SWAP        } from './modules/evaluate_oracle.nf'
-include { EVALUATE_ORACLE as EVALUATE_LOCUS_SURVEY    } from './modules/evaluate_oracle.nf'
-
 /*
  * =========================================================================================
  *  MS-ENHANCER-GEN: Nextflow Workflow
@@ -19,7 +10,11 @@ include { EVALUATE_ORACLE as EVALUATE_LOCUS_SURVEY    } from './modules/evaluate
  * =========================================================================================
  */
 
-// Pipeline Parameters
+// Pipeline Parameters. Declared before the `include`s below: the evaluate_oracle
+// module reads params.oracle/params.outdir directly (not as process inputs), and
+// those reads bind at module-parse time -- if the includes ran first, the module
+// would capture params.oracle before its default was ever assigned, sending
+// `--oracle null` to evaluate.py regardless of what the banner below prints.
 params.suffix           = "ms"
 params.outdir           = "${launchDir}/results_${params.suffix}"
 params.data_config      = "${projectDir}/configs/data_config.yaml"
@@ -43,6 +38,15 @@ params.seed             = 42
 
 // Mechanistic Auditing (in-silico interventions on the selected candidates)
 params.run_audit        = true
+
+// EVALUATE_ORACLE included once per call site: Nextflow forbids invoking the
+// same process more than once from a single script, so the main scoring call
+// and each audit-rescoring call get their own alias.
+include { EVALUATE_ORACLE as EVALUATE_MAIN            } from './modules/evaluate_oracle.nf'
+include { EVALUATE_ORACLE as EVALUATE_OCCLUSION       } from './modules/evaluate_oracle.nf'
+include { EVALUATE_ORACLE as EVALUATE_MOTIF_ABLATION  } from './modules/evaluate_oracle.nf'
+include { EVALUATE_ORACLE as EVALUATE_CPG_SWAP        } from './modules/evaluate_oracle.nf'
+include { EVALUATE_ORACLE as EVALUATE_LOCUS_SURVEY    } from './modules/evaluate_oracle.nf'
 
 // Process 0: Fetch Reference Genome (cached in data/, downloaded once)
 process GENOME_PREP {
