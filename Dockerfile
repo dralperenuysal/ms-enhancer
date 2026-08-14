@@ -11,7 +11,17 @@ ENV PYTHONPATH=/app \
     PYTHONUNBUFFERED=1 \
     MPLCONFIGDIR=/tmp/matplotlib \
     TORCH_HOME=/tmp/torch \
+    HF_HOME=/tmp/huggingface \
     PATH=/opt/conda/envs/ms_enhancer/bin:$PATH
+
+# Nextflow's docker profile runs the container as the host's UID:GID (not root,
+# not a user in /etc/passwd), so $HOME resolves to `/` and any library that
+# defaults to `~/.cache` (huggingface_hub included, despite HF_HOME above --
+# some of its internals still probe $HOME) fails with a permission error on
+# `/.cache`. Give every UID a writable home instead of relying on one landing
+# in /etc/passwd.
+RUN mkdir -p /tmp/home && chmod 777 /tmp/home
+ENV HOME=/tmp/home
 
 COPY . .
 
