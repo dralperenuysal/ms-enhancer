@@ -10,7 +10,8 @@ SHELL ["conda", "run", "--no-capture-output", "-n", "ms_enhancer", "/bin/bash", 
 ENV PYTHONPATH=/app \
     PYTHONUNBUFFERED=1 \
     MPLCONFIGDIR=/tmp/matplotlib \
-    TORCH_HOME=/tmp/torch
+    TORCH_HOME=/tmp/torch \
+    PATH=/opt/conda/envs/ms_enhancer/bin:$PATH
 
 COPY . .
 
