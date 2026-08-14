@@ -54,8 +54,9 @@ class EnformerOracle(TrackOracle):
         try:
             try:
                 import transformers.utils.import_utils
-                if hasattr(transformers.utils.import_utils, "check_torch_load_is_safe"):
-                    transformers.utils.import_utils.check_torch_load_is_safe = lambda *args, **kwargs: None
+                import transformers.modeling_utils
+                transformers.utils.import_utils.check_torch_load_is_safe = lambda *args, **kwargs: None
+                transformers.modeling_utils.check_torch_load_is_safe = lambda *args, **kwargs: None
             except Exception:
                 pass
 
