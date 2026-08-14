@@ -389,7 +389,8 @@ class TrackOracle:
             "background_tracks": list(self.background_tracks),
         }
 
-        for rec in records:
+        total_seqs = len(records)
+        for i, rec in enumerate(records, 1):
             locus = locus_map[rec.id]
             res = self.predict_cell_specificity(
                 str(rec.seq),
@@ -400,6 +401,13 @@ class TrackOracle:
             )
             results["sequences"][rec.id] = res
             results["mssi_scores"].append(res["mssi_score"])
+
+            if i % 10 == 0 or i == total_seqs or i <= 3:
+                curr_mean = float(np.mean(results["mssi_scores"]))
+                logger.info(
+                    "[%3d/%d - %3d%%] Scored %s (%s) -> MSSI: %+.4f (Running Mean MSSI: %+.4f)",
+                    i, total_seqs, (i * 100) // total_seqs, rec.id, locus["cell_type"], res["mssi_score"], curr_mean
+                )
 
         results["mean_mssi"] = float(np.mean(results["mssi_scores"])) if results["mssi_scores"] else 0.0
 

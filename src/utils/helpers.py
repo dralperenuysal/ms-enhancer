@@ -34,7 +34,13 @@ def setup_logging(level: int = logging.INFO, log_file: Optional[str] = None) -> 
     for h in root_logger.handlers[:]:
         root_logger.removeHandler(h)
 
-    stream_handler = logging.StreamHandler()
+    import sys
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(line_buffering=True)
+
+    stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(formatter)
     root_logger.addHandler(stream_handler)
 

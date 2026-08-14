@@ -233,14 +233,15 @@ def decode_by_sampling(probabilities: torch.Tensor, generator: torch.Generator) 
         List of ``N`` nucleotide strings of length ``L``.
     """
     bases = "ACGT"
-    sequences: List[str] = []
-
-    for i in range(probabilities.shape[0]):
+    total_samples = probabilities.shape[0]
+    for i in range(total_samples):
         # multinomial expects (L, 4): one categorical distribution per position.
         indices = torch.multinomial(
             probabilities[i].transpose(0, 1), num_samples=1, generator=generator
         ).squeeze(1)
         sequences.append("".join(bases[j] for j in indices.tolist()))
+        if (i + 1) % 250 == 0 or (i + 1) == total_samples:
+            logger.info("[%d/%d - %d%%] Sampled synthetic regulatory sequences...", i + 1, total_samples, ((i + 1) * 100) // total_samples)
 
     return sequences
 
