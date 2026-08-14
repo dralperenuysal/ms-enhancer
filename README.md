@@ -15,7 +15,8 @@ The fastest and most reproducible way to run the entire pipeline on any GPU-enab
 curl -s https://get.nextflow.io | bash
 sudo mv nextflow /usr/local/bin/
 
-# 2. Run the full MS pipeline (automatically pulls the pre-built Docker Hub image)
+# 2. Run the full MS pipeline (automatically pulls the pre-built Docker Hub image;
+#    the hg38 reference genome is fetched and cached in data/ on first run)
 nextflow run dralperenuysal/ms-enhancer -profile docker --suffix "ms"
 ```
 
@@ -82,7 +83,8 @@ src/            data_processing/, models/ (cVAE, transformer), evaluation/ (orac
                 Markov baseline, sequence realism), utils/
 scripts/        build_dataset.py, candidate selection, interventions, survey, MPRA scoring
 tests/          pytest suite, one file per src/ module (185 tests, 100% pass)
-main.nf         Nextflow DSL2 automated multi-disease workflow
+main.nf         Nextflow DSL2 automated multi-disease workflow (data -> train -> generate -> score -> select -> audit)
+modules/        EVALUATE_ORACLE, included multiple times (main scoring + each audit rescoring)
 nextflow.config Nextflow profiles (docker, slurm, singularity, awsbatch)
 Dockerfile      Reproducible container definition (dralperenuysal/ms-enhancer:latest)
 ```

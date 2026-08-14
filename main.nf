@@ -1,6 +1,15 @@
 #!/usr/bin/env nextflow
 nextflow.enable.dsl = 2
 
+// EVALUATE_ORACLE included once per call site: Nextflow forbids invoking the
+// same process more than once from a single script, so the main scoring call
+// and each audit-rescoring call get their own alias.
+include { EVALUATE_ORACLE as EVALUATE_MAIN            } from './modules/evaluate_oracle.nf'
+include { EVALUATE_ORACLE as EVALUATE_OCCLUSION       } from './modules/evaluate_oracle.nf'
+include { EVALUATE_ORACLE as EVALUATE_MOTIF_ABLATION  } from './modules/evaluate_oracle.nf'
+include { EVALUATE_ORACLE as EVALUATE_CPG_SWAP        } from './modules/evaluate_oracle.nf'
+include { EVALUATE_ORACLE as EVALUATE_LOCUS_SURVEY    } from './modules/evaluate_oracle.nf'
+
 /*
  * =========================================================================================
  *  MS-ENHANCER-GEN: Nextflow Workflow
@@ -16,7 +25,6 @@ params.outdir           = "${launchDir}/results_${params.suffix}"
 params.data_config      = "${projectDir}/configs/data_config.yaml"
 params.model_config     = "${projectDir}/configs/model_config.yaml"
 params.manifest         = null
-params.genome_fasta     = "${projectDir}/data/hg38.fa"
 
 // Dynamic Disease & Locus Parameters
 params.gwas_id          = null
@@ -32,6 +40,26 @@ params.top_k            = 50
 params.epochs           = 100
 params.batch_size       = 64
 params.seed             = 42
+
+// Mechanistic Auditing (in-silico interventions on the selected candidates)
+params.run_audit        = true
+
+// Process 0: Fetch Reference Genome (cached in data/, downloaded once)
+process GENOME_PREP {
+    tag "Preparing hg38 reference genome"
+    storeDir "${projectDir}/data"
+
+    output:
+    path "hg38.fa", emit: fasta
+
+    script:
+    """
+    if [ ! -f hg38.fa ]; then
+        wget -c https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz -O hg38.fa.gz
+        gunzip hg38.fa.gz
+    fi
+    """
+}
 
 // Process 1: Build Genomic Windows & Tensors
 process BUILD_DATASET {
@@ -161,41 +189,6 @@ process GENERATE_SEQUENCES {
     """
 }
 
-// Process 4: Evaluate with In-Silico Oracle
-process EVALUATE_ORACLE {
-    tag "Scoring with ${params.oracle} oracle"
-    publishDir "${params.outdir}/evaluation", mode: 'copy'
-
-    input:
-    path candidates_fasta
-    path candidates_meta
-    path model_cfg
-    path genome_fa
-
-    output:
-    path "evaluation_results_${params.suffix}.json", emit: eval_report
-    path "logs/evaluate.log",                         emit: eval_log
-
-    script:
-    """
-    export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
-    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
-        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
-        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
-    fi
-    mkdir -p logs data
-    ln -s \$(readlink -f ${genome_fa}) data/hg38.fa
-
-    python ${projectDir}/evaluate.py \
-        --input_fasta ${candidates_fasta} \
-        --metadata ${candidates_meta} \
-        --oracle ${params.oracle} \
-        --config ${model_cfg} \
-        --reference_fasta data/hg38.fa \
-        --output_report evaluation_results_${params.suffix}.json
-    """
-}
-
 // Process 5: Select Top Candidates
 process SELECT_CANDIDATES {
     tag "Selecting top ${params.top_k} candidates"
@@ -208,7 +201,7 @@ process SELECT_CANDIDATES {
 
     output:
     path "top_selected_${params.suffix}_${params.cell_type}.fasta", emit: selected_fasta
-    path "top_selected_${params.suffix}_${params.cell_type}_metadata.csv", optional: true
+    path "top_selected_${params.suffix}_${params.cell_type}_metadata.csv", emit: selected_meta
     path "logs/select_candidates.log", emit: select_log
 
     script:
@@ -226,6 +219,186 @@ process SELECT_CANDIDATES {
         --metadata ${candidates_meta} \
         --top_k ${params.top_k} \
         --out_fasta top_selected_${params.suffix}_${params.cell_type}.fasta
+    """
+}
+
+// ===========================================================================
+// Mechanistic Auditing: in-silico interventions on the selected candidates,
+// each rescored by EVALUATE_ORACLE so the causal effect on MSSI is a
+// pipeline artifact, not a manual notebook step.
+// ===========================================================================
+
+// Process 6a: Occlusion Scan (localises the oracle's preference within the insert)
+process AUDIT_OCCLUSION {
+    tag "Occlusion scan (suffix: ${params.suffix})"
+    publishDir "${params.outdir}/audit/occlusion", mode: 'copy'
+
+    input:
+    path eval_report
+    path selected_fasta
+    path selected_meta
+
+    output:
+    path "occluded_${params.suffix}.fasta",          emit: fasta
+    path "occluded_${params.suffix}_metadata.csv",   emit: meta
+    path "logs/occlusion_scan.log",                  emit: log
+
+    script:
+    """
+    export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
+    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
+        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
+        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    fi
+    mkdir -p logs
+    python ${projectDir}/scripts/occlusion_scan.py \
+        --score_report ${eval_report} \
+        --input_fasta ${selected_fasta} \
+        --metadata ${selected_meta} \
+        --output_fasta occluded_${params.suffix}.fasta \
+        --output_metadata occluded_${params.suffix}_metadata.csv \
+        --seed ${params.seed} \
+        2>&1 | tee logs/occlusion_scan.log
+    """
+}
+
+// Process 6b: Motif Ablation (tests whether a specific factor's sites carry the preference)
+process AUDIT_MOTIF_ABLATION {
+    tag "Motif ablation (suffix: ${params.suffix})"
+    publishDir "${params.outdir}/audit/motif_ablation", mode: 'copy'
+
+    input:
+    path eval_report
+    path selected_fasta
+    path selected_meta
+    path model_cfg
+
+    output:
+    path "ablated_${params.suffix}.fasta",          emit: fasta
+    path "ablated_${params.suffix}_metadata.csv",   emit: meta
+    path "logs/motif_ablation.log",                 emit: log
+
+    script:
+    """
+    export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
+    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
+        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
+        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    fi
+    mkdir -p logs
+    python ${projectDir}/scripts/motif_ablation.py \
+        --score_report ${eval_report} \
+        --input_fasta ${selected_fasta} \
+        --metadata ${selected_meta} \
+        --output_fasta ablated_${params.suffix}.fasta \
+        --output_metadata ablated_${params.suffix}_metadata.csv \
+        --tf ANY \
+        --config ${model_cfg} \
+        --seed ${params.seed} \
+        2>&1 | tee logs/motif_ablation.log
+    """
+}
+
+// Process 6c: CpG Swap (changes CpG content in isolation)
+process AUDIT_CPG_SWAP {
+    tag "CpG swap (suffix: ${params.suffix})"
+    publishDir "${params.outdir}/audit/cpg_swap", mode: 'copy'
+
+    input:
+    path eval_report
+    path selected_fasta
+    path selected_meta
+
+    output:
+    path "cpgswap_${params.suffix}.fasta",          emit: fasta
+    path "cpgswap_${params.suffix}_metadata.csv",   emit: meta
+    path "logs/cpg_swap.log",                       emit: log
+
+    script:
+    """
+    export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
+    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
+        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
+        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    fi
+    mkdir -p logs
+    python ${projectDir}/scripts/cpg_swap.py \
+        --score_report ${eval_report} \
+        --input_fasta ${selected_fasta} \
+        --metadata ${selected_meta} \
+        --output_fasta cpgswap_${params.suffix}.fasta \
+        --output_metadata cpgswap_${params.suffix}_metadata.csv \
+        --seed ${params.seed} \
+        2>&1 | tee logs/cpg_swap.log
+    """
+}
+
+// Process 6d: Locus Survey (places one fixed intervention across many host loci)
+process AUDIT_LOCUS_SURVEY {
+    tag "Locus survey (suffix: ${params.suffix})"
+    publishDir "${params.outdir}/audit/locus_survey", mode: 'copy'
+
+    input:
+    path windows_fasta
+    path windows_meta
+    path candidates_fasta
+
+    output:
+    path "survey_${params.suffix}.fasta",          emit: fasta
+    path "survey_${params.suffix}_metadata.csv",   emit: meta
+    path "survey_${params.suffix}_hosts.csv",      emit: hosts
+    path "logs/locus_survey.log",                  emit: log
+
+    script:
+    """
+    export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
+    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
+        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
+        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    fi
+    mkdir -p logs
+    python ${projectDir}/scripts/locus_survey.py \
+        --windows_fasta ${windows_fasta} \
+        --metadata ${windows_meta} \
+        --candidates_fasta ${candidates_fasta} \
+        --cell_type ${params.cell_type} \
+        --output_fasta survey_${params.suffix}.fasta \
+        --output_metadata survey_${params.suffix}_metadata.csv \
+        --output_hosts survey_${params.suffix}_hosts.csv \
+        --seed ${params.seed} \
+        2>&1 | tee logs/locus_survey.log
+    """
+}
+
+// Process 6e: Selected-vs-Rejected Grammar Comparison (no rescoring needed;
+// reads the original oracle report directly)
+process AUDIT_GRAMMAR {
+    tag "Grammar comparison (suffix: ${params.suffix})"
+    publishDir "${params.outdir}/audit/grammar", mode: 'copy'
+
+    input:
+    path eval_report
+    path candidates_fasta
+    path model_cfg
+
+    output:
+    path "grammar_${params.suffix}.csv",     emit: csv
+    path "logs/selected_grammar.log",        emit: log
+
+    script:
+    """
+    export PYTHONPATH="${projectDir}:\${PYTHONPATH:-}"
+    if [ -d "/opt/conda/envs/ms_enhancer" ]; then
+        export PATH="/opt/conda/envs/ms_enhancer/bin:\$PATH"
+        export LD_LIBRARY_PATH="/opt/conda/envs/ms_enhancer/lib:\${LD_LIBRARY_PATH:-}"
+    fi
+    mkdir -p logs
+    python ${projectDir}/scripts/compare_selected_grammar.py \
+        --reports ${eval_report} \
+        --fastas ${candidates_fasta} \
+        --config ${model_cfg} \
+        --output_csv grammar_${params.suffix}.csv \
+        --seed ${params.seed}
     """
 }
 
@@ -252,7 +425,10 @@ workflow {
 
     data_config_ch   = file(params.data_config)
     model_config_ch  = file(params.model_config)
-    genome_fasta_ch  = file(params.genome_fasta)
+
+    // Step 0: Fetch reference genome (skipped if data/hg38.fa already exists)
+    GENOME_PREP()
+    genome_fasta_ch  = GENOME_PREP.out.fasta
 
     // Step 1: Build dataset
     BUILD_DATASET(data_config_ch, genome_fasta_ch)
@@ -270,17 +446,81 @@ workflow {
     )
 
     // Step 4: In-silico evaluation
-    EVALUATE_ORACLE(
+    EVALUATE_MAIN(
+        params.suffix,
         GENERATE_SEQUENCES.out.candidates_fasta,
         GENERATE_SEQUENCES.out.candidates_meta,
         model_config_ch,
         genome_fasta_ch
     )
+    main_eval_report_ch = EVALUATE_MAIN.out.eval_report
 
     // Step 5: Candidate selection
     SELECT_CANDIDATES(
-        EVALUATE_ORACLE.out.eval_report,
+        main_eval_report_ch,
         GENERATE_SEQUENCES.out.candidates_fasta,
         GENERATE_SEQUENCES.out.candidates_meta
     )
+
+    // Step 6: Mechanistic auditing (set --run_audit false to skip for a quick smoketest)
+    if (params.run_audit) {
+        AUDIT_OCCLUSION(
+            main_eval_report_ch,
+            SELECT_CANDIDATES.out.selected_fasta,
+            SELECT_CANDIDATES.out.selected_meta
+        )
+        EVALUATE_OCCLUSION(
+            "${params.suffix}_occlusion",
+            AUDIT_OCCLUSION.out.fasta,
+            AUDIT_OCCLUSION.out.meta,
+            model_config_ch,
+            genome_fasta_ch
+        )
+
+        AUDIT_MOTIF_ABLATION(
+            main_eval_report_ch,
+            SELECT_CANDIDATES.out.selected_fasta,
+            SELECT_CANDIDATES.out.selected_meta,
+            model_config_ch
+        )
+        EVALUATE_MOTIF_ABLATION(
+            "${params.suffix}_motif_ablation",
+            AUDIT_MOTIF_ABLATION.out.fasta,
+            AUDIT_MOTIF_ABLATION.out.meta,
+            model_config_ch,
+            genome_fasta_ch
+        )
+
+        AUDIT_CPG_SWAP(
+            main_eval_report_ch,
+            SELECT_CANDIDATES.out.selected_fasta,
+            SELECT_CANDIDATES.out.selected_meta
+        )
+        EVALUATE_CPG_SWAP(
+            "${params.suffix}_cpg_swap",
+            AUDIT_CPG_SWAP.out.fasta,
+            AUDIT_CPG_SWAP.out.meta,
+            model_config_ch,
+            genome_fasta_ch
+        )
+
+        AUDIT_LOCUS_SURVEY(
+            BUILD_DATASET.out.windows_fasta,
+            BUILD_DATASET.out.windows_meta,
+            SELECT_CANDIDATES.out.selected_fasta
+        )
+        EVALUATE_LOCUS_SURVEY(
+            "${params.suffix}_locus_survey",
+            AUDIT_LOCUS_SURVEY.out.fasta,
+            AUDIT_LOCUS_SURVEY.out.meta,
+            model_config_ch,
+            genome_fasta_ch
+        )
+
+        AUDIT_GRAMMAR(
+            main_eval_report_ch,
+            GENERATE_SEQUENCES.out.candidates_fasta,
+            model_config_ch
+        )
+    }
 }

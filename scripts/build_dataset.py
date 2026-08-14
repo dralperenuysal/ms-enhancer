@@ -132,6 +132,12 @@ def main() -> None:
     if args.gse:
         clean_gse = extract_clean_accession(args.gse)
         cell_type = args.cell_type or f"{args.suffix}_cell"
+        logger.warning(
+            "No 'expected' metadata block for GSE %s (CLI-provided GSE skips organism/"
+            "library_strategy/n_samples verification). Add one to configs/data_config.yaml "
+            "to enable GEODownloader.verify_dataset() checks.",
+            clean_gse,
+        )
         config.setdefault("geo_datasets", {})
         config["geo_datasets"]["verified_datasets"] = [
             {
