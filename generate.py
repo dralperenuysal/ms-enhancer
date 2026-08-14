@@ -39,6 +39,7 @@ def parse_args():
     parser.add_argument("--host_locus_id", type=str, default=None, help="Assign every candidate to this one peak_id instead of sampling loci. Required for selection: the host locus explains ~45x more MSSI variance than the insert, so candidates scored at different loci cannot be ranked against each other")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--deterministic", action="store_true", help="Force deterministic kernels so output matches across machines (slower)")
+    parser.add_argument("--sample_batch_size", type=int, default=100, help="Sequences sampled per autoregressive batch. The transformer has no KV cache, so peak attention memory scales with batch_size x sequence_length^2; chunking num_samples into batches of this size avoids GPU OOM on smaller cards (e.g. 1000 samples in one batch exceeds a T4's 15 GB). Does not change which cell type/condition is sampled, only how many rows go through forward() at once.")
     return parser.parse_args()
 
 
@@ -331,7 +332,22 @@ def generate():
         f"Sampling {args.num_samples} sequences for cell type '{args.cell_type}' "
         f"with condition vector: {[round(v, 4) for v in cond.tolist()]}..."
     )
-    prob_tensors = model.sample(condition=cond, num_samples=args.num_samples, seed=args.seed)
+    if args.num_samples > args.sample_batch_size:
+        # Chunked to bound peak attention memory (no KV cache: cost scales with
+        # batch_size x sequence_length^2). The run is seeded once above via
+        # set_seed(), so only the first chunk reseeds explicitly; later chunks
+        # draw from the already-seeded RNG instead of repeating the same batch.
+        chunks = []
+        remaining = args.num_samples
+        first = True
+        while remaining > 0:
+            batch = min(args.sample_batch_size, remaining)
+            chunks.append(model.sample(condition=cond, num_samples=batch, seed=args.seed if first else None))
+            remaining -= batch
+            first = False
+        prob_tensors = torch.cat(chunks, dim=0)
+    else:
+        prob_tensors = model.sample(condition=cond, num_samples=args.num_samples, seed=args.seed)
 
     sequences = decode_by_sampling(prob_tensors.cpu(), seeded_generator(args.seed))
     write_output(args, sequences)
