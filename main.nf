@@ -29,6 +29,18 @@ params.cell_type        = "CD4_T_cell"
 
 // Model & Oracle Parameters
 params.model_type       = "transformer"  // 'transformer' or 'cvae'
+// Default is markov, not checkpoint: every selection/audit result in the
+// manuscript (compare-selected-grammar, occlusion, motif ablation, CpG swap,
+// locus survey) was generated with the order-6 Markov baseline, not the
+// trained transformer/cvae -- Section 2.2 found the transformer failed to
+// reproduce the microglia SPI1 enrichment that the Markov chain matched, so
+// the paper used the Markov chain for every downstream experiment. This
+// param must keep matching whichever generator the manuscript's numbers were
+// last regenerated from; it is not a free knob to sweep independently of the
+// paper. TRAIN_MODEL still runs even when unused, since Nextflow's DSL2 graph
+// is static -- see GENERATE_SEQUENCES.
+params.generator        = "markov"       // 'markov' (matches the manuscript) or 'checkpoint' (trained model_type)
+params.markov_order     = null           // override configs/model_config.yaml's markov_baseline.order
 params.num_samples      = 1000
 params.oracle           = "enformer"     // 'enformer', 'borzoi', 'motif', 'realism'
 params.top_k            = 50
@@ -190,6 +202,7 @@ process GENERATE_SEQUENCES {
     ln -s \$(readlink -f ${windows_meta}) data/fasta/ms_windows_metadata.csv
 
     python ${projectDir}/generate.py \
+        --generator ${params.generator} \
         --checkpoint ${checkpoint} \
         --config ${model_cfg} \
         --cell_type ${params.cell_type} \
@@ -198,7 +211,8 @@ process GENERATE_SEQUENCES {
         --host_loci data/fasta/ms_windows_metadata.csv \
         --num_samples ${params.num_samples} \
         --out_fasta synthetic_candidates_${params.suffix}.fasta \
-        --seed ${params.seed}
+        --seed ${params.seed} \
+        ${params.markov_order ? "--markov_order ${params.markov_order}" : ""}
     """
 }
 
@@ -447,7 +461,8 @@ workflow {
     GWAS Trait Label  : ${params.gwas_label ?: 'Default (Config-defined)'}
     GEO Accession     : ${params.gse ?: 'Default (Config-defined)'}
     Target Cell Type  : ${params.cell_type}
-    Model Type        : ${params.model_type}
+    Model Type        : ${params.model_type} (trained regardless; only used if --generator checkpoint)
+    Generator         : ${params.generator}
     Num Samples       : ${params.num_samples}
     Oracle Evaluator  : ${params.oracle}
     Top-K Selection   : ${params.top_k}
