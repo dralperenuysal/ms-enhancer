@@ -497,8 +497,8 @@ workflow {
     if (params.run_audit) {
         AUDIT_OCCLUSION(
             main_eval_report_ch,
-            SELECT_CANDIDATES.out.selected_fasta,
-            SELECT_CANDIDATES.out.selected_meta
+            GENERATE_SEQUENCES.out.candidates_fasta,
+            GENERATE_SEQUENCES.out.candidates_meta
         )
         EVALUATE_OCCLUSION(
             "${params.suffix}_occlusion",
@@ -510,8 +510,8 @@ workflow {
 
         AUDIT_MOTIF_ABLATION(
             main_eval_report_ch,
-            SELECT_CANDIDATES.out.selected_fasta,
-            SELECT_CANDIDATES.out.selected_meta,
+            GENERATE_SEQUENCES.out.candidates_fasta,
+            GENERATE_SEQUENCES.out.candidates_meta,
             model_config_ch
         )
         EVALUATE_MOTIF_ABLATION(
@@ -524,8 +524,8 @@ workflow {
 
         AUDIT_CPG_SWAP(
             main_eval_report_ch,
-            SELECT_CANDIDATES.out.selected_fasta,
-            SELECT_CANDIDATES.out.selected_meta
+            GENERATE_SEQUENCES.out.candidates_fasta,
+            GENERATE_SEQUENCES.out.candidates_meta
         )
         EVALUATE_CPG_SWAP(
             "${params.suffix}_cpg_swap",
