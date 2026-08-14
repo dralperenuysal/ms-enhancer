@@ -235,6 +235,7 @@ def decode_by_sampling(probabilities: torch.Tensor, generator: torch.Generator) 
     """
     bases = "ACGT"
     total_samples = probabilities.shape[0]
+    sequences: List[str] = []
     for i in range(total_samples):
         # multinomial expects (L, 4): one categorical distribution per position.
         indices = torch.multinomial(
