@@ -9,9 +9,8 @@
 
 # Install the CUDA build for your driver, e.g.:
 #   pip install torch --index-url https://download.pytorch.org/whl/cu121
-# torch >= 2.4 is required for the torch.amp.GradScaler(device_type) API used by
-# train.py --amp.
-torch>=2.4
+# torch >= 2.6.0 is required for safe HuggingFace weights loading and torch.amp.GradScaler.
+torch>=2.6.0
 
 numpy>=1.24
 pandas>=2.0

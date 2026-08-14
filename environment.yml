@@ -14,8 +14,8 @@ channels:
   - conda-forge
 dependencies:
   - python=3.10
-  # torch >= 2.4 is required for the torch.amp.GradScaler(device_type) API.
-  - pytorch>=2.4
+  # torch >= 2.6 is required for safe HuggingFace weights loading and torch.amp.GradScaler.
+  - pytorch>=2.6
   - pytorch-cuda=12.1
   - numpy>=1.24
   - pandas>=2.0
