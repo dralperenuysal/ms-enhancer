@@ -15,10 +15,20 @@
 # --extra-index-url up front keeps it pip's package for the rest of the
 # resolve, so nothing later downgrades it.
 #
-# The cu121 index below must match the driver on the target machine (CUDA
-# 12.1 wheels run on any driver reporting CUDA >= 12.1; check with
-# `nvidia-smi`). Verified: torch 2.9.1+cu129 (Tesla T4, driver 580, CUDA 13.0)
-# and torch 2.13.0 / numpy 2.4.6 / pandas 3.0.3 (CPU-only, Python 3.12).
+# The cu126 index below must match the driver on the target machine: run
+# `nvidia-smi` and read the "CUDA Version" in its header (that is the driver's
+# max *supported* runtime, not what's installed) -- pick the highest cuXXX
+# suffix from https://download.pytorch.org/whl/ that does not exceed it (e.g.
+# driver reports 12.8 -> cu126 or cu128 both work; driver reports 12.1 -> use
+# cu121, but then also drop the torch>=2.6.0 floor below since cu121 wheels
+# stop at 2.5.1). --index-url (not --extra-index-url) is required here: pip's
+# plain PyPI default for `torch` now bundles its own newest CUDA runtime via
+# nvidia-* wheels (cu130 as of torch 2.13), which is *newer* than most
+# deployed drivers support and fails at import with "CUDA initialization: The
+# NVIDIA driver on your system is too old" -- --extra-index-url does not
+# prevent pip from preferring that default. Verified: torch 2.9.1+cu129 (Tesla
+# T4, driver 580, CUDA 13.0), torch 2.13.0+cu126 (4x RTX 3090, driver 570.133,
+# CUDA 12.8), and torch 2.13.0 / numpy 2.4.6 / pandas 3.0.3 (CPU-only, Python 3.12).
 
 name: ms_enhancer
 channels:
@@ -32,7 +42,8 @@ dependencies:
   - pytest>=7.0
   - pip
   - pip:
-      - --extra-index-url https://download.pytorch.org/whl/cu121
+      - --index-url https://download.pytorch.org/whl/cu126
+      - --extra-index-url https://pypi.org/simple
       # torch >= 2.6 is required for safe HuggingFace weights loading and torch.amp.GradScaler.
       - torch>=2.6.0
       # Not packaged on conda-forge at the versions this project was verified on.
