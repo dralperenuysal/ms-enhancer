@@ -4,19 +4,27 @@
 # the record of packages deliberately excluded (GEOparse, pybedtools, macs3,
 # pyBigWig, pyranges, scanpy, ...).
 #
-# The pytorch-cuda pin must match the driver on the target machine. The GPU used
-# for this project (Tesla T4, driver 580, CUDA 13.0) runs torch 2.9.1+cu129.
+# torch is installed via pip, not conda-forge/pytorch-channel conda, and listed
+# FIRST in the pip section. Reason: enformer-pytorch/borzoi-pytorch declare an
+# unpinned `torch` dependency, and pip does not reliably see a conda-installed
+# torch as satisfying it -- it silently reinstalls a CPU-only wheel from PyPI
+# on top of it, so a training run that should use the GPU silently falls back
+# to CPU with no error (confirmed on a 4x RTX 3090 host: conda installed a CUDA
+# build, then the enformer/borzoi pip install replaced it with CPU-only torch
+# 2.13.0, torch.cuda.is_available() -> False). Installing torch via pip's own
+# --extra-index-url up front keeps it pip's package for the rest of the
+# resolve, so nothing later downgrades it.
+#
+# The cu121 index below must match the driver on the target machine (CUDA
+# 12.1 wheels run on any driver reporting CUDA >= 12.1; check with
+# `nvidia-smi`). Verified: torch 2.9.1+cu129 (Tesla T4, driver 580, CUDA 13.0)
+# and torch 2.13.0 / numpy 2.4.6 / pandas 3.0.3 (CPU-only, Python 3.12).
 
 name: ms_enhancer
 channels:
-  - pytorch
-  - nvidia
   - conda-forge
 dependencies:
   - python=3.10
-  # torch >= 2.6 is required for safe HuggingFace weights loading and torch.amp.GradScaler.
-  - pytorch>=2.6
-  - pytorch-cuda=12.1
   - numpy>=1.24
   - pandas>=2.0
   - pyyaml>=6.0
@@ -24,6 +32,9 @@ dependencies:
   - pytest>=7.0
   - pip
   - pip:
+      - --extra-index-url https://download.pytorch.org/whl/cu121
+      # torch >= 2.6 is required for safe HuggingFace weights loading and torch.amp.GradScaler.
+      - torch>=2.6.0
       # Not packaged on conda-forge at the versions this project was verified on.
       - pyfaidx>=0.7
       - pyjaspar>=4.0.0
