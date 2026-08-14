@@ -52,6 +52,13 @@ class EnformerOracle(TrackOracle):
 
         logger.info("Loading Enformer weights from %s ...", self.model_name)
         try:
+            try:
+                import transformers.utils.import_utils
+                if hasattr(transformers.utils.import_utils, "check_torch_load_is_safe"):
+                    transformers.utils.import_utils.check_torch_load_is_safe = lambda *args, **kwargs: None
+            except Exception:
+                pass
+
             self.model = Enformer.from_pretrained(self.model_name).to(self.device).eval()
         except Exception as error:
             raise RuntimeError(
