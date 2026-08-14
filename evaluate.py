@@ -61,13 +61,13 @@ def evaluate():
         reference = [str(r.seq) for r in SeqIO.parse(args.reference_windows, "fasta")]
 
         report = SequenceRealism(config_path=args.config).compare(generated, reference)
-        os.makedirs(os.path.dirname(args.output_report), exist_ok=True)
+        os.makedirs(os.path.dirname(args.output_report) or ".", exist_ok=True)
         with open(args.output_report, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2)
     elif args.oracle == "motif":
         analyzer = MotifAnalyzer(config_path=args.config)
         report = analyzer.analyze_fasta(fasta_path=args.input_fasta)
-        os.makedirs(os.path.dirname(args.output_report), exist_ok=True)
+        os.makedirs(os.path.dirname(args.output_report) or ".", exist_ok=True)
         with open(args.output_report, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2)
 

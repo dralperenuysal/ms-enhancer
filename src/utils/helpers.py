@@ -39,7 +39,7 @@ def setup_logging(level: int = logging.INFO, log_file: Optional[str] = None) -> 
     root_logger.addHandler(stream_handler)
 
     if log_file:
-        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        os.makedirs(os.path.dirname(log_file) or ".", exist_ok=True)
         file_handler = logging.FileHandler(log_file, mode="a", encoding="utf-8")
         file_handler.setFormatter(formatter)
         root_logger.addHandler(file_handler)

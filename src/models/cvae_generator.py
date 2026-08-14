@@ -339,7 +339,7 @@ class CVAEGenerator(nn.Module):
                 RNG states needed to resume training without changing the random
                 stream. Keys must not collide with the standard fields.
         """
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
         checkpoint = {
             "epoch": epoch,
             "model_state_dict": self.state_dict(),

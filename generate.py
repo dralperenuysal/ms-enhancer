@@ -260,7 +260,7 @@ def write_output(args, sequences: List[str]) -> None:
         for peak_id, seq in zip(peak_ids, sequences)
     ]
 
-    os.makedirs(os.path.dirname(args.out_fasta), exist_ok=True)
+    os.makedirs(os.path.dirname(args.out_fasta) or ".", exist_ok=True)
     SeqIO.write(records, args.out_fasta, "fasta")
 
     # Written alongside the FASTA so the sequences can be scored: the oracle needs

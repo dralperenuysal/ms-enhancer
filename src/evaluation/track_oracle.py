@@ -403,7 +403,7 @@ class TrackOracle:
 
         results["mean_mssi"] = float(np.mean(results["mssi_scores"])) if results["mssi_scores"] else 0.0
 
-        os.makedirs(os.path.dirname(output_report_path), exist_ok=True)
+        os.makedirs(os.path.dirname(output_report_path) or ".", exist_ok=True)
         with open(output_report_path, "w", encoding="utf-8") as f:
             json.dump(results, f, indent=2)
 
