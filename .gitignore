@@ -13,7 +13,9 @@ __pycache__/
 # Data: reference genome, raw/processed windows, generated FASTA/BED, MPRA
 # library — large and regenerable from the pipeline entry points in
 # reports/2026-08-10_conditional-cre-generation.md §8, not source.
-/data/
+/data/*
+# ...except the bundled synthetic example dataset (GEO-independent smoke test, see docs/REPRODUCING.md §10)
+!/data/example_synthetic/
 
 # Model checkpoints (root directory only)
 /models/
@@ -59,3 +61,4 @@ pipeline_info/
 results_*/
 
 AGENTS.md
+.codewhale

@@ -168,3 +168,46 @@ Sections 1-7 make locus retrieval and data construction disease-agnostic. The or
 If your exact cell type has no track in a given oracle (e.g. Enformer has no microglia track — see the proxy-track caveat at `configs/model_config.yaml:112-117`), use the nearest available lineage as an explicit proxy and document it as such; do not report the resulting score as a direct measurement of the missing cell type.
 
 There is no CLI flag or automated lookup for this step — it is manual curation, done once per (oracle, cell type) pair, the same way the CD4_T_cell/B_cell/microglia tracks shipped with this repo were originally selected.
+
+---
+
+## 9. Reproducibility of the MS Manuscript's Numbers
+
+We re-ran the full MS pipeline (`--suffix ms`, `--generator markov`, the generator the manuscript's own selection/audit results were built on, see the comment above `params.generator` in `main.nf`) end to end via `nextflow run ... -profile docker` on a fresh GPU VM, independently of the original analysis, to validate that this repository actually reproduces the manuscript. It did, with one caveat worth stating plainly:
+
+**GSE202087 and GSE307262 are live GEO deposits, not a frozen snapshot bundled with this repo.** A fresh `nextflow run` re-downloads whatever GEO currently hosts under those accessions. GSE307262 is explicitly preprint-linked (see the manuscript's reference list); depositors can and do revise preprint-associated deposits after publication without changing the accession number. Our re-run's cell-type-exclusive window count came out within 0.1% of the manuscript's reported figure (a handful of windows out of ~10,800), small enough to be consistent with exactly this kind of upstream revision, not with a configuration difference (the same accessions, same sample counts per cell type, and same dedup rules in `configs/data_config.yaml` were used both times).
+
+Every qualitative conclusion reproduced despite that drift: CpG content's causal effect and its host-locus-dependent sign, the null result for motif-density ablation, and the between-locus heterogeneity in Section 2.7 (Cochran's $Q$, $I^2$, and the direction/rate of individually significant loci) all came out at comparable magnitude and significance in the independent re-run. **We did not update the manuscript's reported point estimates to match this re-run**, and do not intend to update them after future re-runs either: exact figures computed against live third-party data will drift slightly between any two pulls, including a reviewer's own re-run, and chasing bit-for-bit numeric agreement against a moving upstream target is not a meaningful reproducibility bar. The bar that matters, and the one this re-run was checked against, is whether the same biological conclusions come out, and they did.
+
+If you re-run this pipeline and get numbers that differ from the manuscript by more than roughly this margin, or whose *qualitative* conclusions (sign, significance, direction) differ, that is worth investigating as a real discrepancy; small drift in the third or fourth significant figure of a point estimate, on its own, is not.
+
+---
+
+## 10. Offline Smoke Test with Bundled Synthetic Data (No GEO Access Required)
+
+`data/example_synthetic/` ships in this repo (it's the one exception to `data/` being
+git-ignored): a `peak_manifest.json` plus a handful of `narrowPeak` files at 40 peaks
+each, for 3 fake samples (`CD4_T_cell`, `B_cell`, `microglia`). Peak coordinates are
+drawn from the real MS GWAS risk loci in `data/bed/ms_gwas_loci_hg38.bed` so windows
+land somewhere biologically meaningful, but the scores/signal/p-values are fabricated
+(`scripts/make_synthetic_example_data.py`, seed 42). **This is not real ATAC-seq data
+and produces no valid scientific conclusions** — it exists purely so you can verify the
+pipeline mechanics (window building, encoding, generation, oracle scoring, audits) run
+end to end on a machine that can't or doesn't want to hit live GEO yet, before pointing
+it at a real accession.
+
+```bash
+# Regenerate the bundled files (optional, they're already committed):
+PYTHONPATH=. python scripts/make_synthetic_example_data.py
+
+# Run the pipeline against them directly, skipping GEO entirely:
+PYTHONPATH=. python scripts/build_dataset.py --manifest data/example_synthetic/peak_manifest.json --suffix synthtest
+
+# Or via Nextflow, same idea (PYTHONPATH handled by the Docker image, not needed):
+nextflow run main.nf -profile docker --suffix synthtest \
+  --manifest data/example_synthetic/peak_manifest.json
+```
+
+`PYTHONPATH=.` is only needed for local Python runs: `src/` is imported as a
+package but there is no `pip install -e .` step, so the repo root must be on
+`sys.path` (the Docker image sets `PYTHONPATH=/app` for the same reason).

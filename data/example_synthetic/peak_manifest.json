@@ -1,0 +1,56 @@
+[
+  {
+    "accession": "SYNTHETIC_EXAMPLE",
+    "gsm": "SYNTH_CD4_T_cell_1",
+    "title": "Synthetic example CD4_T_cell replicate 1",
+    "cell_type": "CD4_T_cell",
+    "url": "",
+    "peak_format": "narrowPeak",
+    "local_path": "data/example_synthetic/peaks/SYNTH_CD4_T_cell_1.narrowPeak"
+  },
+  {
+    "accession": "SYNTHETIC_EXAMPLE",
+    "gsm": "SYNTH_CD4_T_cell_2",
+    "title": "Synthetic example CD4_T_cell replicate 2",
+    "cell_type": "CD4_T_cell",
+    "url": "",
+    "peak_format": "narrowPeak",
+    "local_path": "data/example_synthetic/peaks/SYNTH_CD4_T_cell_2.narrowPeak"
+  },
+  {
+    "accession": "SYNTHETIC_EXAMPLE",
+    "gsm": "SYNTH_B_cell_1",
+    "title": "Synthetic example B_cell replicate 1",
+    "cell_type": "B_cell",
+    "url": "",
+    "peak_format": "narrowPeak",
+    "local_path": "data/example_synthetic/peaks/SYNTH_B_cell_1.narrowPeak"
+  },
+  {
+    "accession": "SYNTHETIC_EXAMPLE",
+    "gsm": "SYNTH_B_cell_2",
+    "title": "Synthetic example B_cell replicate 2",
+    "cell_type": "B_cell",
+    "url": "",
+    "peak_format": "narrowPeak",
+    "local_path": "data/example_synthetic/peaks/SYNTH_B_cell_2.narrowPeak"
+  },
+  {
+    "accession": "SYNTHETIC_EXAMPLE",
+    "gsm": "SYNTH_microglia_1",
+    "title": "Synthetic example microglia replicate 1",
+    "cell_type": "microglia",
+    "url": "",
+    "peak_format": "narrowPeak",
+    "local_path": "data/example_synthetic/peaks/SYNTH_microglia_1.narrowPeak"
+  },
+  {
+    "accession": "SYNTHETIC_EXAMPLE",
+    "gsm": "SYNTH_microglia_2",
+    "title": "Synthetic example microglia replicate 2",
+    "cell_type": "microglia",
+    "url": "",
+    "peak_format": "narrowPeak",
+    "local_path": "data/example_synthetic/peaks/SYNTH_microglia_2.narrowPeak"
+  }
+]
