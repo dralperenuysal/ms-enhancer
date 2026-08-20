@@ -30,34 +30,34 @@ To run this pipeline on a **different disease** (e.g. Ulcerative Colitis, Alzhei
 
 > **No GEO access yet, or just want to check the pipeline runs?** `data/example_synthetic/` bundles a small synthetic (non-biological) peak dataset in the exact same `narrowPeak` + `peak_manifest.json` format GEO downloads produce, so you can smoke-test the full pipeline offline: `PYTHONPATH=. python scripts/build_dataset.py --manifest data/example_synthetic/peak_manifest.json`. (`PYTHONPATH=.` is only needed for local Python runs because `src/` is not a pip-installed package; the Docker/Nextflow path sets `PYTHONPATH=/app` itself.) See [`docs/REPRODUCING.md` §10](docs/REPRODUCING.md#10-offline-smoke-test-with-bundled-synthetic-data-no-geo-access-required).
 
-### Kendi Verinizi Kullanmak
+### Using Your Own Data
 
-Kendi peak verinizi (GEO dışından, kendi ATAC-seq/ChIP-seq deneyinizden vb.) pipeline'a vermek isterseniz, `--manifest` ile `data/example_synthetic/` içindeki örnekle **aynı formatta** iki şey sağlamanız yeterli:
+To feed the pipeline your own peak data (not from GEO, e.g. from your own ATAC-seq/ChIP-seq experiment), supply two things in the **same format** as the example in `data/example_synthetic/`, via `--manifest`:
 
-1. **Peak dosyaları** — her örnek (sample) için, tab-ayrılmış (TSV), başlıksız (headerless) bir `narrowPeak` dosyası, şu 10 sütunla (bkz. `data/example_synthetic/peaks/*.narrowPeak` örnekleri):
+1. **Peak files** — one headerless, tab-separated (TSV) `narrowPeak` file per sample, with the following 10 columns (see the examples in `data/example_synthetic/peaks/*.narrowPeak`):
 
-   | # | Sütun | Açıklama |
+   | # | Column | Description |
    |---|---|---|
-   | 1 | `chrom` | Kromozom, örn. `chr1` (hg38 koordinatları) |
-   | 2 | `start` | Peak başlangıcı (0-tabanlı) |
-   | 3 | `end` | Peak bitişi |
-   | 4 | `name` | Peak kimliği (serbest metin) |
-   | 5 | `score` | 0-1000 arası tam sayı |
-   | 6 | `strand` | Genelde `.` |
-   | 7 | `signal_value` | Sinyal şiddeti (ondalık) |
+   | 1 | `chrom` | Chromosome, e.g. `chr1` (hg38 coordinates) |
+   | 2 | `start` | Peak start (0-based) |
+   | 3 | `end` | Peak end |
+   | 4 | `name` | Peak ID (free text) |
+   | 5 | `score` | Integer between 0 and 1000 |
+   | 6 | `strand` | Usually `.` |
+   | 7 | `signal_value` | Signal intensity (decimal) |
    | 8 | `p_value` | -log10(p) |
    | 9 | `q_value` | -log10(q) |
-   | 10 | `summit_offset` | Zirve (summit) konumunun peak başlangıcına göre ofseti |
+   | 10 | `summit_offset` | Offset of the summit position relative to the peak start |
 
-   (HOMER formatı, başlık satırlı TSV olarak da desteklenir; bkz. `src/data_processing/bed_processor.py`.)
+   (HOMER format, i.e. TSV with a header row, is also supported; see `src/data_processing/bed_processor.py`.)
 
-2. **`peak_manifest.json`** — her peak dosyasını bir hücre tipiyle eşleyen liste, her kayıtta şu alanlar:
+2. **`peak_manifest.json`** — a list mapping each peak file to a cell type, with the following fields per entry:
 
    ```json
    {
      "accession": "MY_DATASET",
      "gsm": "SAMPLE_1",
-     "title": "İsteğe bağlı açıklama",
+     "title": "Optional description",
      "cell_type": "CD4_T_cell",
      "url": "",
      "peak_format": "narrowPeak",
@@ -65,9 +65,9 @@ Kendi peak verinizi (GEO dışından, kendi ATAC-seq/ChIP-seq deneyinizden vb.) 
    }
    ```
 
-   `cell_type` alanı, `configs/model_config.yaml`'daki oracle track eşleştirmeleriyle (bkz. [`docs/REPRODUCING.md` §8](docs/REPRODUCING.md#8-pointing-the-oracles-at-a-new-cell-type-configsmodel_configyaml)) uyumlu olmalı; yeni bir hücre tipi kullanıyorsanız o eşleştirmeyi elle eklemeniz gerekir.
+   The `cell_type` field must match the oracle track mappings in `configs/model_config.yaml` (see [`docs/REPRODUCING.md` §8](docs/REPRODUCING.md#8-pointing-the-oracles-at-a-new-cell-type-configsmodel_configyaml)); if you use a new cell type, add that mapping by hand.
 
-   Sonra: `PYTHONPATH=. python scripts/build_dataset.py --manifest path/to/peak_manifest.json --suffix mydata` — `build_dataset.py` manifest'i bulduğu an GEO'ya hiç gitmeden doğrudan kullanır (bkz. `scripts/build_dataset.py`'deki manifest kısayolu).
+   Then run: `PYTHONPATH=. python scripts/build_dataset.py --manifest path/to/peak_manifest.json --suffix mydata` — as soon as `build_dataset.py` finds the manifest it uses it directly without contacting GEO (see the manifest shortcut in `scripts/build_dataset.py`).
 
 ---
 
@@ -81,7 +81,6 @@ conda activate ms_enhancer
 
 * **Hardware:** Requires a CUDA GPU with ≥24 GB VRAM for Enformer/Borzoi inference and Transformer training.
 * **Configuration:** All paths, GEO accessions, oracle track indices, and hyperparameters live in `configs/*.yaml`; nothing is hardcoded in source.
-* **Pre-built Container Image:** `docker pull dralperenuysal/ms-enhancer:latest`
 
 ---
 
@@ -114,18 +113,18 @@ python scripts/locus_survey.py
 python scripts/mpra_scoring_set.py
 ```
 
-Each script's `--help` lists its arguments; defaults match the paths and parameters in `configs/model_config.yaml` and `configs/data_config.yaml`.
+Each script's `--help` lists its arguments; defaults match the YAML configs.
 
 ---
 
 ## Repository Layout
 
 ```text
-configs/        data_config.yaml, model_config.yaml (all paths/accessions/hyperparameters)
+configs/        data_config.yaml, model_config.yaml
 src/            data_processing/, models/ (cVAE, transformer), evaluation/ (oracles, motif,
                 Markov baseline, sequence realism), utils/
 scripts/        build_dataset.py, candidate selection, interventions, survey, MPRA scoring
-tests/          pytest suite, one file per src/ module (185 tests, 100% pass)
+tests/          pytest suite, one file per src/ module
 main.nf         Nextflow DSL2 automated multi-disease workflow (data -> train -> generate -> score -> select -> audit)
 modules/        EVALUATE_ORACLE, included multiple times (main scoring + each audit rescoring)
 nextflow.config Nextflow profiles (docker, slurm, singularity, awsbatch)
@@ -145,4 +144,4 @@ pytest
 # Or via Docker:
 docker run --rm dralperenuysal/ms-enhancer:latest pytest
 ```
-All 185 unit tests are seeded (`seed=42`) for deterministic reproducibility across platforms.
+All 185 unit tests pass and are seeded (`seed=42`) for deterministic reproducibility across platforms.
