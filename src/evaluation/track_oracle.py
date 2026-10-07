@@ -40,7 +40,7 @@ class TrackOracle:
     """Base oracle: scores an insert in real genomic context against track sets.
 
     Subclasses set :attr:`CONFIG_SECTION`, :attr:`MODEL_LABEL` and the default
-    geometry, then implement :meth:`_load_model` and :meth:`_predict_track_means`.
+    geometry, then implement :meth:`_load_model` and :meth:`_predict_per_bin`.
     """
 
     #: Key under ``evaluation:`` in the model config holding this oracle's tracks.
@@ -53,6 +53,10 @@ class TrackOracle:
     DEFAULT_N_TRACKS: int = 5313
     #: Default pretrained weights identifier.
     DEFAULT_MODEL_NAME: str = ""
+    #: Number of output bins the model emits.
+    DEFAULT_N_BINS: int = 896
+    #: Width in bp of one output bin.
+    DEFAULT_BIN_SIZE: int = 128
 
     def __init__(self, config_path: str = "configs/model_config.yaml") -> None:
         """Initialize the oracle from its section of the model configuration.
@@ -74,6 +78,8 @@ class TrackOracle:
         self.context_length: int = self.config.get("context_length", self.DEFAULT_CONTEXT_LENGTH)
         self.model_name: str = self.config.get("model_name", self.DEFAULT_MODEL_NAME)
         self.n_tracks: int = int(self.config.get("n_tracks", self.DEFAULT_N_TRACKS))
+        self.n_bins: int = int(self.config.get("n_bins", self.DEFAULT_N_BINS))
+        self.bin_size: int = int(self.config.get("bin_size", self.DEFAULT_BIN_SIZE))
 
         self.target_tracks_by_cell_type: Dict[str, List[int]] = self.config.get(
             "target_tracks_by_cell_type", {}
@@ -112,19 +118,22 @@ class TrackOracle:
         """
         raise NotImplementedError(f"{type(self).__name__} must implement _load_model().")
 
-    def _predict_track_means(self, full_seq: str) -> np.ndarray:
-        """Predict per-track means over the output bins for one context window.
+    def _predict_per_bin(self, full_seq: str) -> np.ndarray:
+        """Predict every track at every output bin for one context window.
+
+        Implementations return bins first regardless of the model's own axis
+        order, so that the base class can reduce them the same way for both.
 
         Args:
             full_seq: Context sequence of length :attr:`context_length`.
 
         Returns:
-            Array of shape ``(n_tracks,)``.
+            Array of shape ``(n_bins, n_tracks)``.
 
         Raises:
             NotImplementedError: Always, on the base class.
         """
-        raise NotImplementedError(f"{type(self).__name__} must implement _predict_track_means().")
+        raise NotImplementedError(f"{type(self).__name__} must implement _predict_per_bin().")
 
     # ------------------------------------------------------------------ context
 
@@ -311,17 +320,65 @@ class TrackOracle:
             center_pos=center_pos,
         )
 
-        track_means = self._predict_track_means(full_seq)
+        per_bin = self._predict_per_bin(full_seq)  # (n_bins, n_tracks)
+
+        track_means = per_bin.mean(axis=0)
         target_signal = track_means[target_tracks].tolist()
         bg_signal = track_means[self.background_tracks].tolist()
 
+        # The same prediction reduced over only the bins the insert occupies.
+        # Averaging over every bin gives the host flanks the overwhelming
+        # majority of the weight by construction, since the insert is 1 kb of a
+        # window two orders of magnitude wider; a reviewer cannot tell host
+        # dominance from score construction unless both reductions are reported,
+        # and both come free from one forward pass.
+        lo, hi = self.insert_bin_slice(len(sequence_str))
+        local_means = per_bin[lo:hi].mean(axis=0)
+        local_target = local_means[target_tracks].tolist()
+        local_bg = local_means[self.background_tracks].tolist()
+
         return {
             "mssi_score": float(np.mean(target_signal) - np.mean(bg_signal)),
+            "mssi_local": float(np.mean(local_target) - np.mean(local_bg)),
+            "local_bins": [int(lo), int(hi)],
             "target_signal": target_signal,
             "background_signal": bg_signal,
             "cell_type": cell_type,
             "target_tracks": list(target_tracks),
+            # Private, and stripped by evaluate_fasta unless a track dump was
+            # requested: carrying every track in the JSON report would bloat it
+            # by three orders of magnitude for no gain.
+            "_all_tracks_global": track_means.astype(np.float32),
+            "_all_tracks_local": local_means.astype(np.float32),
         }
+
+    def insert_bin_slice(self, insert_len: int) -> tuple:
+        """Half-open range of output bins covering a centred insert.
+
+        The model's output window is centred on, but narrower than, its input
+        window: it emits ``n_bins`` bins of ``bin_size`` bp, so the prediction
+        covers ``n_bins * bin_size`` bp with the remainder cropped symmetrically.
+        The insert sits at the centre of the input, hence at the centre of the
+        output, and this maps it onto bin indices.
+
+        At least one bin is always returned, so an insert shorter than a bin
+        still yields the centre bin rather than an empty slice.
+
+        Args:
+            insert_len: Length of the designed insert in bp.
+
+        Returns:
+            ``(lo, hi)`` suitable for slicing the bin axis.
+        """
+        covered = self.n_bins * self.bin_size
+        # Offset of the output window's start within the input window.
+        crop = (self.context_length - covered) // 2
+        insert_start = (self.context_length - insert_len) // 2
+        lo = (insert_start - crop) // self.bin_size
+        hi = -(-(insert_start + insert_len - crop) // self.bin_size)  # ceil
+        lo = max(0, min(lo, self.n_bins - 1))
+        hi = max(lo + 1, min(hi, self.n_bins))
+        return lo, hi
 
     # -------------------------------------------------------------------- batch
 
@@ -331,6 +388,7 @@ class TrackOracle:
         metadata_path: str,
         reference_fasta_path: str,
         output_report_path: str = "logs/evaluation_results.json",
+        track_dump_path: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Batch evaluate a FASTA of synthetic sequences and save a JSON report.
 
@@ -345,6 +403,12 @@ class TrackOracle:
                 ``end`` and ``cell_type``.
             reference_fasta_path: Path to the indexed reference FASTA.
             output_report_path: Path to save output evaluation JSON report.
+            track_dump_path: Optional ``.npz`` path. When given, every track's
+                mean is saved for both reductions, not just the configured
+                target and background sets. A forward pass costs GPU hours and
+                yields all tracks anyway, so keeping them makes any later
+                question about a different background set a CPU-only
+                recomputation instead of a second campaign.
 
         Returns:
             Evaluation summary dictionary.
@@ -389,6 +453,10 @@ class TrackOracle:
             "background_tracks": list(self.background_tracks),
         }
 
+        dump_ids: List[str] = []
+        dump_global: List[np.ndarray] = []
+        dump_local: List[np.ndarray] = []
+
         total_seqs = len(records)
         for i, rec in enumerate(records, 1):
             locus = locus_map[rec.id]
@@ -401,6 +469,13 @@ class TrackOracle:
             )
             results["sequences"][rec.id] = res
             results["mssi_scores"].append(res["mssi_score"])
+            if track_dump_path:
+                dump_ids.append(rec.id)
+                dump_global.append(res.pop("_all_tracks_global"))
+                dump_local.append(res.pop("_all_tracks_local"))
+            else:
+                res.pop("_all_tracks_global", None)
+                res.pop("_all_tracks_local", None)
 
             if i % 10 == 0 or i == total_seqs or i <= 3:
                 curr_mean = float(np.mean(results["mssi_scores"]))
@@ -414,6 +489,16 @@ class TrackOracle:
         os.makedirs(os.path.dirname(output_report_path) or ".", exist_ok=True)
         with open(output_report_path, "w", encoding="utf-8") as f:
             json.dump(results, f, indent=2)
+
+        if track_dump_path:
+            os.makedirs(os.path.dirname(track_dump_path) or ".", exist_ok=True)
+            np.savez_compressed(
+                track_dump_path,
+                sequence_ids=np.array(dump_ids),
+                tracks_global=np.asarray(dump_global, dtype=np.float32),
+                tracks_local=np.asarray(dump_local, dtype=np.float32),
+            )
+            logger.info("Saved all-track means for %d sequences to %s.", len(dump_ids), track_dump_path)
 
         logger.info(
             "Evaluated %d sequences from %s. Mean MSSI: %.4f",
@@ -433,7 +518,7 @@ class TrackOracle:
         Returns:
             Tensor of shape ``(len(sequence), 4)``. Models differ in whether they
             want this or its transpose; each subclass orients it in
-            :meth:`_predict_track_means` rather than assuming a convention here.
+            :meth:`_predict_per_bin` rather than assuming a convention here.
         """
         mapping = {"A": 0, "C": 1, "G": 2, "T": 3}
         encoded = np.zeros((len(sequence), 4), dtype=np.float32)

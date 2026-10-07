@@ -37,6 +37,7 @@ def parse_args():
     parser.add_argument("--output_report", type=str, default="logs/evaluation_results.json", help="Path to save evaluation report")
     parser.add_argument("--metadata", type=str, default="data/fasta/ms_windows_metadata.csv", help="CSV with peak_id, chrom, start, end, cell_type for each sequence (enformer oracle)")
     parser.add_argument("--reference_fasta", type=str, default="data/hg38.fa", help="Indexed reference genome for real flanking context (enformer oracle)")
+    parser.add_argument("--track_dump", type=str, default=None, help="Optional .npz path; saves every track's mean for both reductions, so alternative background sets can be tested without re-running the GPU")
     return parser.parse_args()
 
 
@@ -58,6 +59,7 @@ def evaluate():
             metadata_path=args.metadata,
             reference_fasta_path=args.reference_fasta,
             output_report_path=args.output_report,
+            track_dump_path=args.track_dump,
         )
     elif args.oracle == "realism":
         from Bio import SeqIO

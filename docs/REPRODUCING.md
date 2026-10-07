@@ -129,6 +129,29 @@ Every entry point logs to stdout and saves structured deliverables under `result
 
 The audit stage runs by default (`params.run_audit = true`), so a plain `nextflow run ... --suffix uc` reproduces the full protocol end to end: candidate selection *and* the causal interventions that test what the oracle is rewarding, each with its own rescored MSSI report. Pass `--run_audit false` to stop after candidate selection (e.g. for a quick data-construction smoketest on a new disease/GEO dataset without paying for a full GPU run).
 
+### Host-locus survey size
+
+The locus survey places one fixed set of inserts, each carrying the identical CpG edit, at
+many host loci, so that any difference in the measured effect is attributable to the host.
+Two parameters control its size:
+
+```bash
+nextflow run . --survey_loci 200 --survey_inserts 20   # 12,000 sequences to score
+nextflow run . --survey_loci 24                        # default, 1,440 sequences
+```
+
+The default of 24 reproduces the panel the manuscript's headline heterogeneity statistics
+were computed on. Subsampling a 200-locus run showed the heterogeneity estimate already
+stable at 12 loci (median I-squared moves by under one percentage point between 12 and 200),
+so raising `--survey_loci` buys precision rather than a different answer. It also raises the
+chance of sampling the rare minority of loci whose edit effect runs the opposite way, which
+a 24-locus panel can miss: on 200 loci those are about 1-5% of loci depending on the score
+reduction.
+
+Cost is linear in `survey_loci x survey_inserts x 3` sequences, roughly 0.3 s each on a
+V100 and 3.3 s on 20 CPU threads, so a 200-locus survey is about an hour of GPU time. The
+banner printed at launch states the sequence count before any scoring starts.
+
 `scripts/mpra_scoring_set.py` is intentionally not wired into `main.nf`: it needs externally measured MPRA activity data (`--measurements`) that will not exist for most new diseases. Run it manually once you have a matching MPRA dataset; see its module docstring for usage.
 
 ---

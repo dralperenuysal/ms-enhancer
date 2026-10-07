@@ -37,6 +37,9 @@ class BorzoiOracle(TrackOracle):
     MODEL_LABEL = "Borzoi"
     DEFAULT_CONTEXT_LENGTH = 524288
     DEFAULT_N_TRACKS = 7611
+    # 6144 bins of 32 bp cover the central 196,608 bp of the 524,288 bp input.
+    DEFAULT_N_BINS = 6144
+    DEFAULT_BIN_SIZE = 32
     DEFAULT_MODEL_NAME = "johahi/borzoi-replicate-0"
 
     def _load_model(self) -> None:
@@ -68,14 +71,19 @@ class BorzoiOracle(TrackOracle):
                 f"Could not load Borzoi weights '{self.model_name}': {error}"
             ) from error
 
-    def _predict_track_means(self, full_seq: str) -> np.ndarray:
-        """Run Borzoi and average each track over its output bins.
+    def _predict_per_bin(self, full_seq: str) -> np.ndarray:
+        """Run Borzoi and return its per-bin, per-track prediction.
+
+        The reduction over bins is left to the caller, which needs both the
+        whole-window mean and the mean over the insert's own bins.
 
         Args:
             full_seq: Context sequence of length ``context_length``.
 
         Returns:
-            Array of shape ``(7611,)``.
+            Array of shape ``(6144, 7611)``, bins first — transposed from
+            Borzoi's own channels-first output so that both oracles hand the
+            base class the same axis order.
         """
         self._load_model()
 
@@ -85,4 +93,4 @@ class BorzoiOracle(TrackOracle):
             preds = self.model(one_hot)  # (1, 7611, 6144)
             human = preds["human"] if isinstance(preds, dict) else preds
             # Bins are the last axis here, unlike Enformer.
-            return human.mean(dim=-1).squeeze(0).float().cpu().numpy()
+            return human.squeeze(0).transpose(0, 1).float().cpu().numpy()

@@ -50,6 +50,14 @@ params.seed             = 42
 
 // Mechanistic Auditing (in-silico interventions on the selected candidates)
 params.run_audit        = true
+// Host-locus survey size. 24 reproduces the panel the manuscript's headline
+// heterogeneity numbers were computed on; subsampling a 200-locus run showed
+// the estimate already stable at 12 loci, so raising this buys precision and a
+// better chance of catching the rare minority of loci whose effect reverses,
+// not a different answer. Scoring cost is linear: n_loci x survey_inserts x 3
+// sequences, about 0.3 s each on a V100.
+params.survey_loci      = 24
+params.survey_inserts   = 20
 
 // EVALUATE_ORACLE included once per call site: Nextflow forbids invoking the
 // same process more than once from a single script, so the main scoring call
@@ -374,7 +382,7 @@ process AUDIT_CPG_SWAP {
 
 // Process 6d: Locus Survey (places one fixed intervention across many host loci)
 process AUDIT_LOCUS_SURVEY {
-    tag "Locus survey (suffix: ${params.suffix})"
+    tag "Locus survey (${params.survey_loci} loci, suffix: ${params.suffix})"
     publishDir "${params.outdir}/audit/locus_survey", mode: 'copy'
 
     input:
@@ -404,6 +412,8 @@ process AUDIT_LOCUS_SURVEY {
         --metadata ${windows_meta} \
         --candidates_fasta ${candidates_fasta} \
         --cell_type ${params.cell_type} \
+        --n_loci ${params.survey_loci} \
+        --n_inserts ${params.survey_inserts} \
         --output_fasta survey_${params.suffix}.fasta \
         --output_metadata survey_${params.suffix}_metadata.csv \
         --output_hosts survey_${params.suffix}_hosts.csv \
@@ -466,6 +476,8 @@ workflow {
     Num Samples       : ${params.num_samples}
     Oracle Evaluator  : ${params.oracle}
     Top-K Selection   : ${params.top_k}
+    Audit Enabled     : ${params.run_audit}
+    Locus Survey      : ${params.survey_loci} loci x ${params.survey_inserts} inserts (${3 * (params.survey_loci as int) * (params.survey_inserts as int)} sequences to score)
     ================================================================================
     """
 

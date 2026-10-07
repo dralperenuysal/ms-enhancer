@@ -66,14 +66,17 @@ class EnformerOracle(TrackOracle):
                 f"Could not load Enformer weights '{self.model_name}': {error}"
             ) from error
 
-    def _predict_track_means(self, full_seq: str) -> np.ndarray:
-        """Run Enformer and average each track over its output bins.
+    def _predict_per_bin(self, full_seq: str) -> np.ndarray:
+        """Run Enformer and return its per-bin, per-track prediction.
+
+        The reduction over bins is left to the caller, which needs both the
+        whole-window mean and the mean over the insert's own bins.
 
         Args:
             full_seq: Context sequence of length ``context_length``.
 
         Returns:
-            Array of shape ``(5313,)``.
+            Array of shape ``(896, 5313)``, bins first.
         """
         self._load_model()
 
@@ -83,4 +86,4 @@ class EnformerOracle(TrackOracle):
         with torch.no_grad():
             preds = self.model(one_hot)  # (1, 896, 5313)
             human = preds["human"] if isinstance(preds, dict) else preds
-            return human.mean(dim=1).squeeze(0).float().cpu().numpy()
+            return human.squeeze(0).float().cpu().numpy()
